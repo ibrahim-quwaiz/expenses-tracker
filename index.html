@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سجل المصروفات</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Tajawal',sans-serif;background:#0f1117;color:#e8e8e8;min-height:100vh;padding-bottom:90px}
+.topbar{background:#1a1d27;border-bottom:1px solid #2a2d3a;padding:1rem 1.2rem 0;position:sticky;top:0;z-index:100}
+.topbar h1{font-size:1.15rem;font-weight:700;color:#fff;margin-bottom:0.8rem;text-align:center}
+.tabs{display:flex}
+.tab{flex:1;text-align:center;padding:0.6rem;font-size:0.88rem;font-weight:500;color:#555;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
+.tab.active{color:#4f6ef7;border-bottom-color:#4f6ef7}
+.page{display:none;padding:1.1rem}
+.page.active{display:block}
+
+/* cards */
+.card{background:#1a1d27;border:1px solid #2a2d3a;border-radius:14px;padding:1.1rem;margin-bottom:1rem}
+.card label{display:block;font-size:0.78rem;color:#555;margin-bottom:0.4rem}
+textarea{width:100%;background:#12141e;border:1px solid #2a2d3a;border-radius:10px;color:#e8e8e8;font-family:'Tajawal',sans-serif;font-size:0.92rem;line-height:1.6;padding:0.85rem 1rem;resize:none;height:110px;direction:rtl}
+textarea:focus,input:focus,select:focus{outline:none;border-color:#4f6ef7}
+textarea::placeholder,input::placeholder{color:#3a3a3a}
+
+/* buttons */
+.btn{width:100%;padding:0.85rem;border:none;border-radius:12px;font-family:'Tajawal',sans-serif;font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.2s}
+.btn-main{background:#4f6ef7;color:#fff}
+.btn-main:hover{background:#3d5ce0}
+.btn-main:active{transform:scale(0.98)}
+.btn-main:disabled{background:#2a2d3a;color:#555;cursor:not-allowed}
+.btn-sm{width:auto;padding:0.45rem 0.9rem;font-size:0.8rem;border-radius:8px}
+.btn-ghost{background:transparent;border:1px solid #2a2d3a;color:#888}
+.btn-ghost:hover{border-color:#4f6ef7;color:#4f6ef7}
+.btn-danger{background:transparent;border:1px solid #5c1a1a;color:#f87171}
+.btn-danger:hover{background:#2e0d0d}
+
+/* status */
+.status{text-align:center;padding:0.65rem;border-radius:10px;margin-top:0.8rem;font-size:0.85rem;font-weight:500;display:none}
+.status.success{background:#0d2e1a;color:#4ade80;border:1px solid #1a5c35;display:block}
+.status.error{background:#2e0d0d;color:#f87171;border:1px solid #5c1a1a;display:block}
+.status.loading{background:#12141e;color:#888;border:1px solid #2a2d3a;display:block}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid #444;border-top-color:#4f6ef7;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* result grid */
+.result-card{display:none;margin-top:1rem}
+.result-card.show{display:block}
+.result-title{font-size:0.75rem;color:#444;margin-bottom:0.7rem;padding-bottom:0.6rem;border-bottom:1px solid #2a2d3a}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem}
+.result-item{background:#12141e;border-radius:10px;padding:0.75rem}
+.result-item .r-label{font-size:0.68rem;color:#444;margin-bottom:0.25rem}
+.result-item .r-value{font-size:0.9rem;font-weight:500;color:#e8e8e8}
+.result-item.full{grid-column:span 2}
+.result-item.amount .r-value{color:#4f6ef7;font-size:1.2rem;font-weight:700}
+
+/* summary */
+.summary-bar{display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:1rem}
+.summary-box{background:#1a1d27;border:1px solid #2a2d3a;border-radius:12px;padding:0.85rem;text-align:center}
+.summary-box .s-label{font-size:0.72rem;color:#555;margin-bottom:0.25rem}
+.summary-box .s-value{font-size:1.15rem;font-weight:700;color:#4f6ef7}
+.summary-box .s-value.green{color:#4ade80}
+
+/* filters */
+.filters{background:#1a1d27;border:1px solid #2a2d3a;border-radius:12px;padding:0.9rem;margin-bottom:1rem}
+.filters-title{font-size:0.75rem;color:#555;margin-bottom:0.7rem}
+.filter-row{display:flex;gap:0.5rem;margin-bottom:0.6rem}
+.filter-row:last-child{margin-bottom:0}
+.filter-row input,.filter-row select{flex:1;background:#12141e;border:1px solid #2a2d3a;border-radius:8px;color:#e8e8e8;font-family:'Tajawal',sans-serif;font-size:0.82rem;padding:0.55rem 0.75rem;direction:rtl}
+.filter-row select option{background:#1a1d27}
+.clear-btn{background:transparent;border:1px solid #2a2d3a;border-radius:8px;color:#555;font-size:0.8rem;padding:0 0.7rem;cursor:pointer;white-space:nowrap;font-family:'Tajawal',sans-serif}
+.clear-btn:hover{color:#f87171;border-color:#5c1a1a}
+.refresh-btn{background:#1a1d27;border:1px solid #2a2d3a;border-radius:8px;color:#888;font-size:1.1rem;padding:0 0.8rem;cursor:pointer}
+.refresh-btn:hover{color:#4f6ef7;border-color:#4f6ef7}
+
+/* expense list */
+.expense-list{display:flex;flex-direction:column;gap:0.6rem}
+.expense-item{background:#1a1d27;border:1px solid #2a2d3a;border-radius:12px;padding:0.85rem 1rem}
+.expense-top{display:flex;justify-content:space-between;align-items:flex-start}
+.e-merchant{font-size:0.92rem;font-weight:500;color:#e8e8e8}
+.e-amount{font-size:1rem;font-weight:700;color:#4f6ef7}
+.e-meta{font-size:0.72rem;color:#555;margin-top:0.25rem}
+.e-bottom{display:flex;justify-content:space-between;align-items:center;margin-top:0.6rem}
+.e-tags{display:flex;gap:0.4rem;flex-wrap:wrap}
+.tag{font-size:0.68rem;padding:3px 8px;border-radius:6px;font-weight:500}
+.tag-cat{background:#1e2440;color:#7b9ef7}
+.tag-method{background:#1a2820;color:#4ade80}
+.e-actions{display:flex;gap:0.4rem}
+.action-btn{background:transparent;border:1px solid #2a2d3a;border-radius:7px;color:#666;font-size:0.75rem;padding:4px 10px;cursor:pointer;font-family:'Tajawal',sans-serif;transition:all 0.15s}
+.action-btn:hover{color:#e8e8e8;border-color:#555}
+.action-btn.del:hover{color:#f87171;border-color:#5c1a1a}
+
+/* modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:flex-end;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px 16px 0 0;padding:1.3rem;width:100%;max-width:500px}
+.modal-title{font-size:0.95rem;font-weight:700;margin-bottom:1rem;color:#fff}
+.modal input,.modal select{width:100%;background:#12141e;border:1px solid #2a2d3a;border-radius:9px;color:#e8e8e8;font-family:'Tajawal',sans-serif;font-size:0.88rem;padding:0.65rem 0.85rem;margin-bottom:0.7rem;direction:rtl}
+.modal-btns{display:flex;gap:0.6rem;margin-top:0.5rem}
+.modal-btns .btn{padding:0.7rem}
+
+/* empty */
+.empty-state{text-align:center;color:#333;padding:2.5rem 1rem;font-size:0.88rem;line-height:2.2}
+
+/* settings */
+.settings-input{width:100%;background:#12141e;border:1px solid #2a2d3a;border-radius:10px;color:#e8e8e8;font-family:'Tajawal',sans-serif;font-size:0.82rem;padding:0.65rem 0.9rem;margin-top:0.4rem;direction:ltr;text-align:left}
+.settings-input:focus{outline:none;border-color:#4f6ef7}
+.hint{font-size:0.72rem;color:#444;margin-top:0.4rem;line-height:1.6}
+.save-btn{background:#1a1d27;color:#888;border:1px solid #2a2d3a;margin-top:0.8rem;padding:0.65rem;font-size:0.85rem}
+.save-btn:hover{color:#e8e8e8;border-color:#4f6ef7}
+
+.cat-summary{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem}
+.cat-box{background:#1a1d27;border:1px solid #2a2d3a;border-radius:10px;padding:0.7rem 0.85rem;display:flex;justify-content:space-between;align-items:center}
+.cat-box .c-name{font-size:0.8rem;color:#888}
+.cat-box .c-amount{font-size:0.88rem;font-weight:700;color:#4f6ef7}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>💳 سجل المصروفات</h1>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('record')">تسجيل</div>
+    <div class="tab" onclick="switchTab('view')">استعراض</div>
+    <div class="tab" onclick="switchTab('settings')">الإعدادات</div>
+  </div>
+</div>
+
+<!-- تسجيل -->
+<div class="page active" id="page-record">
+  <div class="card">
+    <label>رسالة البنك</label>
+    <textarea id="smsText" placeholder="الصق رسالة SMS من البنك هنا..."></textarea>
+  </div>
+  <button class="btn btn-main" id="analyzeBtn" onclick="analyze()">تحليل وحفظ</button>
+  <div class="result-card card" id="resultCard">
+    <div class="result-title">البيانات المستخرجة</div>
+    <div class="result-grid">
+      <div class="result-item"><div class="r-label">التاريخ</div><div class="r-value" id="r-date">—</div></div>
+      <div class="result-item"><div class="r-label">البنك</div><div class="r-value" id="r-bank">—</div></div>
+      <div class="result-item"><div class="r-label">الجهة</div><div class="r-value" id="r-merchant">—</div></div>
+      <div class="result-item"><div class="r-label">طريقة الدفع</div><div class="r-value" id="r-method">—</div></div>
+      <div class="result-item"><div class="r-label">التصنيف</div><div class="r-value" id="r-category">—</div></div>
+      <div class="result-item amount"><div class="r-label">المبلغ</div><div class="r-value" id="r-amount">—</div></div>
+    </div>
+    <div class="status" id="statusMsg"></div>
+  </div>
+</div>
+
+<!-- استعراض -->
+<div class="page" id="page-view">
+  <div class="summary-bar">
+    <div class="summary-box"><div class="s-label">الإجمالي</div><div class="s-value" id="totalAmount">—</div></div>
+    <div class="summary-box"><div class="s-label">عدد العمليات</div><div class="s-value green" id="totalCount">—</div></div>
+  </div>
+
+  <div class="cat-summary" id="catSummary"></div>
+
+  <div class="filters">
+    <div class="filters-title">الفلاتر</div>
+    <div class="filter-row">
+      <input type="text" id="searchInput" placeholder="ابحث عن جهة..." oninput="applyFilters()" style="direction:rtl" />
+      <button class="refresh-btn" onclick="loadExpenses()">↻</button>
+    </div>
+    <div class="filter-row">
+      <select id="filterCat" onchange="applyFilters()">
+        <option value="">كل التصنيفات</option>
+        <option>تسوق</option><option>مطاعم</option><option>بنزين</option>
+        <option>فواتير</option><option>صحة</option><option>ترفيه</option>
+        <option>شخصي</option><option>أخرى</option>
+      </select>
+      <select id="filterMethod" onchange="applyFilters()">
+        <option value="">كل طرق الدفع</option>
+        <option>مدى</option><option>فيزا</option><option>تحويل</option><option>كاش</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <input type="date" id="filterFrom" onchange="applyFilters()" style="direction:ltr" />
+      <input type="date" id="filterTo" onchange="applyFilters()" style="direction:ltr" />
+      <button class="clear-btn" onclick="clearFilters()">مسح</button>
+    </div>
+  </div>
+
+  <div class="expense-list" id="expenseList">
+    <div class="empty-state">اضغط ↻ لتحميل المصروفات</div>
+  </div>
+</div>
+
+<!-- الإعدادات -->
+<div class="page" id="page-settings">
+  <div class="card">
+    <label>رابط Google Apps Script</label>
+    <input class="settings-input" type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/..." />
+    <p class="hint">الرابط من Apps Script ← Deploy ← Manage deployments</p>
+    <button class="btn save-btn" onclick="saveSettings()">حفظ الإعدادات</button>
+    <div class="status" id="settingsStatus" style="margin-top:0.8rem"></div>
+  </div>
+</div>
+
+<!-- Modal تعديل -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-title">تعديل المصروف</div>
+    <input type="hidden" id="editRow" />
+    <label style="font-size:0.78rem;color:#555">التاريخ</label>
+    <input type="date" id="editDate" style="direction:ltr" />
+    <label style="font-size:0.78rem;color:#555">البنك</label>
+    <input type="text" id="editBank" placeholder="البنك" />
+    <label style="font-size:0.78rem;color:#555">الجهة / المتجر</label>
+    <input type="text" id="editMerchant" placeholder="الجهة" />
+    <label style="font-size:0.78rem;color:#555">المبلغ</label>
+    <input type="number" id="editAmount" placeholder="0" style="direction:ltr" />
+    <label style="font-size:0.78rem;color:#555">طريقة الدفع</label>
+    <select id="editMethod">
+      <option>مدى</option><option>فيزا</option><option>تحويل</option><option>كاش</option>
+    </select>
+    <label style="font-size:0.78rem;color:#555">التصنيف</label>
+    <select id="editCategory">
+      <option>تسوق</option><option>مطاعم</option><option>بنزين</option>
+      <option>فواتير</option><option>صحة</option><option>ترفيه</option>
+      <option>شخصي</option><option>أخرى</option>
+    </select>
+    <div class="modal-btns">
+      <button class="btn btn-main" onclick="saveEdit()">حفظ</button>
+      <button class="btn btn-ghost" onclick="closeModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_URL = "https://script.google.com/macros/s/AKfycbzBKQHQAUar8JnU5yW1YJ1WayE4UO-0JJb3D2rPbgOPUqHXsDCw1fQlIgH068wV391R/exec";
+let allExpenses = [];
+
+const getUrl = () => localStorage.getItem('script_url') || DEFAULT_URL;
+
+function switchTab(name) {
+  ['record','view','settings'].forEach((n,i) => {
+    document.querySelectorAll('.tab')[i].classList.toggle('active', n===name);
+    document.getElementById('page-'+n).classList.toggle('active', n===name);
+  });
+  if (name==='view') loadExpenses();
+}
+
+function loadSettings() {
+  document.getElementById('scriptUrl').value = localStorage.getItem('script_url') || DEFAULT_URL;
+}
+
+function saveSettings() {
+  localStorage.setItem('script_url', document.getElementById('scriptUrl').value.trim());
+  const el = document.getElementById('settingsStatus');
+  el.className='status success'; el.textContent='✅ تم الحفظ';
+  setTimeout(()=>el.className='status',2000);
+}
+
+function showStatus(msg,type) {
+  const el=document.getElementById('statusMsg');
+  el.className='status '+type; el.innerHTML=msg;
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return String(d).split('T')[0];
+}
+
+function fmtAmount(a) {
+  if (!a) return '—';
+  return Number(a).toLocaleString('ar-SA') + ' ر.س';
+}
+
+async function analyze() {
+  const sms = document.getElementById('smsText').value.trim();
+  if (!sms) return showStatus('الرجاء لصق رسالة البنك أولاً','error');
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>جاري التحليل...';
+  document.getElementById('resultCard').classList.add('show');
+  showStatus('يتم التحليل...','loading');
+  try {
+    const res = await fetch(getUrl(), {
+      method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({action:'analyze', sms})
+    });
+    const result = await res.json();
+    if (result.status!=='success') throw new Error(result.message);
+    const d = result.data;
+    document.getElementById('r-date').textContent = fmtDate(d.date);
+    document.getElementById('r-bank').textContent = d.bank||'—';
+    document.getElementById('r-merchant').textContent = d.merchant||'—';
+    document.getElementById('r-method').textContent = d.method||'—';
+    document.getElementById('r-category').textContent = d.category||'—';
+    document.getElementById('r-amount').textContent = fmtAmount(d.amount);
+    showStatus('✅ تم الحفظ في Google Sheets','success');
+    document.getElementById('smsText').value='';
+  } catch(err) {
+    showStatus('❌ '+err.message,'error');
+  } finally {
+    btn.disabled=false; btn.innerHTML='تحليل وحفظ';
+  }
+}
+
+async function loadExpenses() {
+  document.getElementById('expenseList').innerHTML='<div class="empty-state"><span class="spinner"></span> جاري التحميل...</div>';
+  try {
+    const res = await fetch(getUrl()+'?action=get');
+    const data = await res.json();
+    allExpenses = data.rows||[];
+    applyFilters();
+  } catch(err) {
+    document.getElementById('expenseList').innerHTML=`<div class="empty-state">❌ ${err.message}</div>`;
+  }
+}
+
+function applyFilters() {
+  let list = [...allExpenses];
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const cat = document.getElementById('filterCat').value;
+  const method = document.getElementById('filterMethod').value;
+  const from = document.getElementById('filterFrom').value;
+  const to = document.getElementById('filterTo').value;
+  if (q) list = list.filter(e=>(e.merchant||'').toLowerCase().includes(q)||(e.bank||'').toLowerCase().includes(q));
+  if (cat) list = list.filter(e=>e.category===cat);
+  if (method) list = list.filter(e=>e.method===method);
+  if (from) list = list.filter(e=>fmtDate(e.date)>=from);
+  if (to) list = list.filter(e=>fmtDate(e.date)<=to);
+  renderExpenses(list);
+}
+
+function clearFilters() {
+  document.getElementById('searchInput').value='';
+  document.getElementById('filterCat').value='';
+  document.getElementById('filterMethod').value='';
+  document.getElementById('filterFrom').value='';
+  document.getElementById('filterTo').value='';
+  applyFilters();
+}
+
+function renderExpenses(expenses) {
+  const total = expenses.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  document.getElementById('totalAmount').textContent = total.toLocaleString('ar-SA')+' ر.س';
+  document.getElementById('totalCount').textContent = expenses.length;
+
+  const cats = {};
+  expenses.forEach(e=>{
+    const c=e.category||'أخرى';
+    cats[c]=(cats[c]||0)+(parseFloat(e.amount)||0);
+  });
+  document.getElementById('catSummary').innerHTML = Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`
+    <div class="cat-box"><span class="c-name">${c}</span><span class="c-amount">${v.toLocaleString('ar-SA')} ر.س</span></div>
+  `).join('');
+
+  if (!expenses.length) {
+    document.getElementById('expenseList').innerHTML='<div class="empty-state">لا توجد نتائج</div>';
+    return;
+  }
+  document.getElementById('expenseList').innerHTML = expenses.slice().reverse().map(e=>`
+    <div class="expense-item">
+      <div class="expense-top">
+        <div>
+          <div class="e-merchant">${e.merchant||'—'}</div>
+          <div class="e-meta">${fmtDate(e.date)} · ${e.bank||''}</div>
+        </div>
+        <div class="e-amount">${fmtAmount(e.amount)}</div>
+      </div>
+      <div class="e-bottom">
+        <div class="e-tags">
+          ${e.category?`<span class="tag tag-cat">${e.category}</span>`:''}
+          ${e.method?`<span class="tag tag-method">${e.method}</span>`:''}
+        </div>
+        <div class="e-actions">
+          <button class="action-btn" onclick="openEdit(${e.row})">تعديل</button>
+          <button class="action-btn del" onclick="deleteExpense(${e.row})">حذف</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openEdit(row) {
+  const e = allExpenses.find(x=>x.row===row);
+  if (!e) return;
+  document.getElementById('editRow').value=row;
+  document.getElementById('editDate').value=fmtDate(e.date);
+  document.getElementById('editBank').value=e.bank||'';
+  document.getElementById('editMerchant').value=e.merchant||'';
+  document.getElementById('editAmount').value=e.amount||'';
+  document.getElementById('editMethod').value=e.method||'مدى';
+  document.getElementById('editCategory').value=e.category||'أخرى';
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('show');
+}
+
+async function saveEdit() {
+  const row = document.getElementById('editRow').value;
+  const body = {
+    action:'update', row,
+    date: document.getElementById('editDate').value,
+    bank: document.getElementById('editBank').value,
+    merchant: document.getElementById('editMerchant').value,
+    amount: document.getElementById('editAmount').value,
+    method: document.getElementById('editMethod').value,
+    category: document.getElementById('editCategory').value
+  };
+  try {
+    await fetch(getUrl(),{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(body)});
+    closeModal();
+    loadExpenses();
+  } catch(err) { alert('خطأ: '+err.message); }
+}
+
+async function deleteExpense(row) {
+  if (!confirm('هل تريد حذف هذا المصروف؟')) return;
+  try {
+    await fetch(getUrl(),{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action:'delete',row})});
+    loadExpenses();
+  } catch(err) { alert('خطأ: '+err.message); }
+}
+
+document.getElementById('editModal').addEventListener('click',function(e){
+  if(e.target===this) closeModal();
+});
+
+loadSettings();
+</script>
+</body>
+</html>
