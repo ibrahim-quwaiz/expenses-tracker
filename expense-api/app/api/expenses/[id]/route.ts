@@ -4,6 +4,25 @@ import { ok, badRequest, notFound, serverError } from "@/lib/http";
 
 const VALID_TYPES = ["purchase", "bill_payment", "transfer_out", "transfer_in", "refund"];
 
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT e.id, e.amount, e.description, e.date, e.category_id, c.name AS category_name,
+              e.store_id, s.name AS store_name, e.transaction_type, e.source, e.created_at, e.updated_at
+       FROM expenses e
+       LEFT JOIN categories c ON c.id = e.category_id
+       LEFT JOIN stores s ON s.id = e.store_id
+       WHERE e.id = $1`,
+      [id],
+    );
+    if (rows.length === 0) return notFound("Expense not found");
+    return ok(rows[0]);
+  } catch (error) {
+    return serverError(error);
+  }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {

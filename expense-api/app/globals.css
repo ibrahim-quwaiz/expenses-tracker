@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #f5f5f6;
+  --color-surface: #ffffff;
+  --color-separator: #e4e4e8;
+  --color-ink: #1c1c1e;
+  --color-ink-muted: #6e6e73;
+  --color-ink-faint: #aeaeb4;
+  --color-fill: #f0f0f2;
+  --color-primary: #2e5c8a;
+  --color-success: #1b8a5a;
+  --color-danger: #d14343;
+  --color-warning: #b9770e;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Arabic", "Segoe UI",
+    Tahoma, Arial, sans-serif;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
