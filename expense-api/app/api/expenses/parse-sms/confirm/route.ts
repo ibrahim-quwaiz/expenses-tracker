@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { ok, badRequest, serverError, conflict } from "@/lib/http";
+import { balanceDelta, adjustAccountBalance } from "@/lib/accountBalance";
 
 const VALID_TYPES = ["purchase", "bill_payment", "transfer_out", "transfer_in", "refund"];
 
@@ -10,9 +11,11 @@ const VALID_TYPES = ["purchase", "bill_payment", "transfer_out", "transfer_in", 
  * (including races between two confirms of the same SMS).
  */
 export async function POST(req: NextRequest) {
+  const client = await pool.connect();
   try {
     const body = await req.json();
-    const { amount, description, date, category_id, store_id, transaction_type, raw_sms_hash } = body ?? {};
+    const { amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, raw_sms_hash } =
+      body ?? {};
 
     if (amount === undefined || Number(amount) < 0) {
       return badRequest("amount must be a non-negative number");
@@ -27,25 +30,35 @@ export async function POST(req: NextRequest) {
       return badRequest(`transaction_type must be one of: ${VALID_TYPES.join(", ")}`);
     }
 
-    const existing = await pool.query("SELECT id FROM expenses WHERE raw_sms_hash = $1", [raw_sms_hash]);
+    await client.query("BEGIN");
+
+    const existing = await client.query("SELECT id FROM expenses WHERE raw_sms_hash = $1", [raw_sms_hash]);
     if (existing.rows.length > 0) {
+      await client.query("ROLLBACK");
       return conflict("This SMS was already processed");
     }
 
-    const { rows } = await pool.query(
-      `INSERT INTO expenses (amount, description, date, category_id, store_id, transaction_type, raw_sms_hash, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'sms_paste')
-       RETURNING id, amount, description, date, category_id, store_id, transaction_type, source, created_at, updated_at`,
-      [amount, description ?? null, date, category_id ?? null, store_id, type, raw_sms_hash],
+    const { rows } = await client.query(
+      `INSERT INTO expenses (amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, raw_sms_hash, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'sms_paste')
+       RETURNING id, amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, source, created_at, updated_at`,
+      [amount, description ?? null, date, category_id ?? null, store_id, account_id ?? null, payment_method ?? null, type, raw_sms_hash],
     );
+
+    await adjustAccountBalance(client, account_id, balanceDelta(Number(amount), type));
+
+    await client.query("COMMIT");
     return ok(rows[0], 201);
   } catch (error: any) {
+    await client.query("ROLLBACK");
     if (error?.code === "23505" && error?.constraint === "idx_expenses_raw_sms_hash") {
       return conflict("This SMS was already processed");
     }
     if (error?.code === "23503") {
-      return badRequest("category_id or store_id does not reference an existing row");
+      return badRequest("category_id, store_id, or account_id does not reference an existing row");
     }
     return serverError(error);
+  } finally {
+    client.release();
   }
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ChevronRightIcon, ChevronLeftIcon, PlusIcon } from "@/components/icons";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRightIcon, PlusIcon } from "@/components/icons";
 import type { Category } from "@/lib/types";
 
 export default function CategoriesPage() {
@@ -12,6 +12,9 @@ export default function CategoriesPage() {
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"expense" | "income">("expense");
   const [saving, setSaving] = useState(false);
+
+  const [subInputs, setSubInputs] = useState<Record<string, string>>({});
+  const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
 
   function load() {
     fetch("/api/categories")
@@ -41,8 +44,39 @@ export default function CategoriesPage() {
     }
   }
 
-  const expenseCats = categories.filter((c) => c.type !== "income");
-  const incomeCats = categories.filter((c) => c.type === "income");
+  async function addSubcategory(parentId: string) {
+    const name = (subInputs[parentId] ?? "").trim();
+    if (!name) return;
+    setAddingSubFor(parentId);
+    try {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, parent_category_id: parentId }),
+      });
+      if (res.ok) {
+        setSubInputs((s) => ({ ...s, [parentId]: "" }));
+        load();
+      }
+    } finally {
+      setAddingSubFor(null);
+    }
+  }
+
+  async function deleteCategory(id: string, isParent: boolean) {
+    const msg = isParent ? `حذف هذا التصنيف وكل فئاته الفرعية؟` : "حذف هذه الفئة؟";
+    if (!confirm(msg)) return;
+    await fetch(`/api/categories/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  const groups = useMemo(() => {
+    const topLevel = categories.filter((c) => !c.parent_category_id);
+    return topLevel.map((parent) => ({
+      parent,
+      children: categories.filter((c) => c.parent_category_id === parent.id),
+    }));
+  }, [categories]);
 
   return (
     <>
@@ -52,11 +86,7 @@ export default function CategoriesPage() {
           الإعدادات
         </Link>
         <div className="text-[15px] font-semibold">التصنيفات</div>
-        <button
-          aria-label="إضافة تصنيف"
-          onClick={() => setAdding((v) => !v)}
-          className="text-primary"
-        >
+        <button aria-label="إضافة تصنيف" onClick={() => setAdding((v) => !v)} className="text-primary">
           <PlusIcon />
         </button>
       </div>
@@ -69,7 +99,7 @@ export default function CategoriesPage() {
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="اسم التصنيف"
+              placeholder="اسم التصنيف الرئيسي"
               className="border border-separator rounded-lg px-3 py-2 text-sm outline-none"
             />
             <div className="flex gap-2">
@@ -101,42 +131,58 @@ export default function CategoriesPage() {
         )}
 
         {loading && <div className="text-sm text-ink-muted text-center py-8">جارٍ التحميل...</div>}
-
-        {!loading && (
-          <>
-            <div className="text-xs font-semibold text-ink-muted uppercase tracking-wide px-1 pb-1.5">مصروفات</div>
-            <div className="bg-surface rounded-[10px] overflow-hidden mb-5">
-              {expenseCats.length === 0 && (
-                <div className="px-3.5 py-3 text-sm text-ink-faint">لا توجد تصنيفات</div>
-              )}
-              {expenseCats.map((c, i) => (
-                <div key={c.id}>
-                  <div className="flex items-center gap-3 px-3.5 py-3">
-                    <span className="flex-1 text-[14.5px]">{c.name}</span>
-                    <ChevronLeftIcon className="text-[#C7C7CC]" />
-                  </div>
-                  {i < expenseCats.length - 1 && <div className="h-px bg-separator mr-3.5" />}
-                </div>
-              ))}
-            </div>
-
-            <div className="text-xs font-semibold text-ink-muted uppercase tracking-wide px-1 pb-1.5">دخل</div>
-            <div className="bg-surface rounded-[10px] overflow-hidden">
-              {incomeCats.length === 0 && (
-                <div className="px-3.5 py-3 text-sm text-ink-faint">لا توجد تصنيفات</div>
-              )}
-              {incomeCats.map((c, i) => (
-                <div key={c.id}>
-                  <div className="flex items-center gap-3 px-3.5 py-3">
-                    <span className="flex-1 text-[14.5px]">{c.name}</span>
-                    <ChevronLeftIcon className="text-[#C7C7CC]" />
-                  </div>
-                  {i < incomeCats.length - 1 && <div className="h-px bg-separator mr-3.5" />}
-                </div>
-              ))}
-            </div>
-          </>
+        {!loading && groups.length === 0 && (
+          <div className="text-sm text-ink-muted text-center py-8">لا توجد تصنيفات بعد</div>
         )}
+
+        <div className="flex flex-col gap-3.5">
+          {groups.map(({ parent, children }) => (
+            <div key={parent.id} className="bg-surface rounded-[10px] overflow-hidden">
+              <div className="flex items-center justify-between px-3.5 py-3 bg-fill/40">
+                <span className="text-[14.5px] font-semibold">{parent.name}</span>
+                <button
+                  onClick={() => deleteCategory(parent.id, true)}
+                  className="text-xs font-medium text-danger"
+                >
+                  حذف
+                </button>
+              </div>
+
+              {children.map((child) => (
+                <div key={child.id}>
+                  <div className="h-px bg-separator mr-3.5" />
+                  <div className="flex items-center justify-between px-3.5 py-2.5 pr-6">
+                    <span className="text-[13.5px] text-ink-muted">{child.name}</span>
+                    <button
+                      onClick={() => deleteCategory(child.id, false)}
+                      className="text-xs font-medium text-ink-faint"
+                    >
+                      حذف
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              <div className="h-px bg-separator mr-3.5" />
+              <div className="flex items-center gap-2 px-3.5 py-2.5">
+                <input
+                  type="text"
+                  value={subInputs[parent.id] ?? ""}
+                  onChange={(e) => setSubInputs((s) => ({ ...s, [parent.id]: e.target.value }))}
+                  placeholder="إضافة فئة فرعية..."
+                  className="flex-1 border-none bg-transparent text-[13px] text-ink outline-none"
+                />
+                <button
+                  onClick={() => addSubcategory(parent.id)}
+                  disabled={addingSubFor === parent.id}
+                  className="text-xs font-semibold text-primary flex-shrink-0 disabled:opacity-50"
+                >
+                  إضافة
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </>
   );

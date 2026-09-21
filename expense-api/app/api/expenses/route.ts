@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { ok, badRequest, serverError } from "@/lib/http";
+import { balanceDelta, adjustAccountBalance } from "@/lib/accountBalance";
 
 const VALID_TYPES = ["purchase", "bill_payment", "transfer_out", "transfer_in", "refund"];
 
@@ -45,10 +46,12 @@ export async function GET(req: NextRequest) {
     const { rows } = await pool.query(
       `SELECT e.id, e.amount, e.description, e.date, e.category_id, c.name AS category_name,
               e.store_id, s.name AS store_name, s.logo_url AS store_logo_url,
+              e.account_id, a.name AS account_name, e.payment_method,
               e.transaction_type, e.source, e.created_at, e.updated_at
        FROM expenses e
        LEFT JOIN categories c ON c.id = e.category_id
        LEFT JOIN stores s ON s.id = e.store_id
+       LEFT JOIN accounts a ON a.id = e.account_id
        ${where}
        ORDER BY e.date DESC, e.created_at DESC`,
       params,
@@ -60,6 +63,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const client = await pool.connect();
   try {
     const body = await req.json();
     const {
@@ -68,6 +72,8 @@ export async function POST(req: NextRequest) {
       date,
       category_id,
       store_id,
+      account_id,
+      payment_method,
       transaction_type,
     } = body ?? {};
 
@@ -80,17 +86,26 @@ export async function POST(req: NextRequest) {
       return badRequest(`transaction_type must be one of: ${VALID_TYPES.join(", ")}`);
     }
 
-    const { rows } = await pool.query(
-      `INSERT INTO expenses (amount, description, date, category_id, store_id, transaction_type, source)
-       VALUES ($1, $2, $3, $4, $5, $6, 'manual')
-       RETURNING id, amount, description, date, category_id, store_id, transaction_type, source, created_at, updated_at`,
-      [amount, description ?? null, date, category_id ?? null, store_id ?? null, type],
+    await client.query("BEGIN");
+
+    const { rows } = await client.query(
+      `INSERT INTO expenses (amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'manual')
+       RETURNING id, amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, source, created_at, updated_at`,
+      [amount, description ?? null, date, category_id ?? null, store_id ?? null, account_id ?? null, payment_method ?? null, type],
     );
+
+    await adjustAccountBalance(client, account_id, balanceDelta(Number(amount), type));
+
+    await client.query("COMMIT");
     return ok(rows[0], 201);
   } catch (error: any) {
+    await client.query("ROLLBACK");
     if (error?.code === "23503") {
-      return badRequest("category_id or store_id does not reference an existing row");
+      return badRequest("category_id, store_id, or account_id does not reference an existing row");
     }
     return serverError(error);
+  } finally {
+    client.release();
   }
 }

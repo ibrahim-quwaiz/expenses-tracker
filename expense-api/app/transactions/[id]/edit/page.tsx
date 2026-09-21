@@ -5,14 +5,16 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { findOrCreateStore } from "@/lib/stores";
 import { formatAmount } from "@/lib/format";
-import type { Category, Expense, TransactionType } from "@/lib/types";
-import { TRANSACTION_TYPE_LABELS } from "@/lib/types";
+import { categorySelectOptions } from "@/lib/categoryOptions";
+import type { Account, Category, Expense, TransactionType } from "@/lib/types";
+import { PAYMENT_METHODS, TRANSACTION_TYPE_LABELS } from "@/lib/types";
 
 export default function EditTransactionPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +22,8 @@ export default function EditTransactionPage() {
   const [amount, setAmount] = useState("");
   const [merchant, setMerchant] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
   const [transactionType, setTransactionType] = useState<TransactionType>("purchase");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -28,17 +32,23 @@ export default function EditTransactionPage() {
     Promise.all([
       fetch(`/api/expenses/${id}`).then((r) => r.json()),
       fetch("/api/categories").then((r) => r.json()),
-    ]).then(([exp, cats]: [Expense, Category[]]) => {
+      fetch("/api/accounts").then((r) => r.json()),
+    ]).then(([exp, cats, accs]: [Expense, Category[], Account[]]) => {
       setCategories(Array.isArray(cats) ? cats : []);
+      setAccounts(Array.isArray(accs) ? accs : []);
       setAmount(exp.amount);
       setMerchant(exp.store_name ?? "");
       setCategoryId(exp.category_id ?? cats?.[0]?.id ?? "");
+      setAccountId(exp.account_id ?? "");
+      setPaymentMethod(exp.payment_method ?? "");
       setTransactionType(exp.transaction_type);
       setDate(exp.date.slice(0, 10));
       setNotes(exp.description ?? "");
       setLoading(false);
     });
   }, [id]);
+
+  const categoryOptions = categorySelectOptions(categories);
 
   async function save() {
     setError(null);
@@ -58,6 +68,8 @@ export default function EditTransactionPage() {
           date,
           category_id: categoryId || null,
           store_id: storeId,
+          account_id: accountId || null,
+          payment_method: paymentMethod || null,
           transaction_type: transactionType,
         }),
       });
@@ -136,9 +148,47 @@ export default function EditTransactionPage() {
                     onChange={(e) => setCategoryId(e.target.value)}
                     className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
                   >
-                    {categories.map((c) => (
+                    {categoryOptions.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name}
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="h-px bg-separator mr-3.5" />
+                <div className="flex items-center justify-between px-3.5 py-3">
+                  <label htmlFor="eAccount" className="text-[14.5px]">
+                    الحساب
+                  </label>
+                  <select
+                    id="eAccount"
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
+                    className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
+                  >
+                    <option value="">بدون حساب</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="h-px bg-separator mr-3.5" />
+                <div className="flex items-center justify-between px-3.5 py-3">
+                  <label htmlFor="ePaymentMethod" className="text-[14.5px]">
+                    وسيلة الدفع
+                  </label>
+                  <select
+                    id="ePaymentMethod"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
+                  >
+                    <option value="">غير محددة</option>
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
                       </option>
                     ))}
                   </select>

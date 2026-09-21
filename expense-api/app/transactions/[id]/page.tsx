@@ -131,6 +131,16 @@ export default function TransactionDetailsPage() {
                 </div>
                 <div className="h-px bg-separator mr-3.5" />
                 <div className="flex items-center justify-between px-3.5 py-3">
+                  <span className="text-[14.5px] text-ink-muted">الحساب</span>
+                  <span className="text-[14.5px]">{expense.account_name ?? "بدون حساب"}</span>
+                </div>
+                <div className="h-px bg-separator mr-3.5" />
+                <div className="flex items-center justify-between px-3.5 py-3">
+                  <span className="text-[14.5px] text-ink-muted">وسيلة الدفع</span>
+                  <span className="text-[14.5px]">{expense.payment_method ?? "غير محددة"}</span>
+                </div>
+                <div className="h-px bg-separator mr-3.5" />
+                <div className="flex items-center justify-between px-3.5 py-3">
                   <span className="text-[14.5px] text-ink-muted">المصدر</span>
                   <span className="text-[14.5px]">{SOURCE_LABELS[expense.source] ?? expense.source}</span>
                 </div>

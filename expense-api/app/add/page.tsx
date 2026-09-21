@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { findOrCreateStore } from "@/lib/stores";
 import { formatAmount } from "@/lib/format";
-import type { Category, TransactionType } from "@/lib/types";
-import { TRANSACTION_TYPE_LABELS } from "@/lib/types";
+import { categorySelectOptions } from "@/lib/categoryOptions";
+import type { Account, Category, TransactionType } from "@/lib/types";
+import { PAYMENT_METHODS, TRANSACTION_TYPE_LABELS } from "@/lib/types";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -15,6 +16,8 @@ type SmsItem = {
   amount: string;
   merchant: string;
   categoryId: string;
+  accountId: string;
+  paymentMethod: string;
   transactionType: TransactionType;
   date: string;
   notes: string;
@@ -29,11 +32,14 @@ export default function AddExpensePage() {
   const router = useRouter();
   const [tab, setTab] = useState<"manual" | "sms">("manual");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
 
   // manual tab
   const [amount, setAmount] = useState("");
   const [merchant, setMerchant] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
   const [transactionType, setTransactionType] = useState<TransactionType>("purchase");
   const [date, setDate] = useState(todayISO());
   const [notes, setNotes] = useState("");
@@ -54,7 +60,12 @@ export default function AddExpensePage() {
         setCategories(Array.isArray(cats) ? cats : []);
         setCategoryId((prev) => prev || cats?.[0]?.id || "");
       });
+    fetch("/api/accounts")
+      .then((r) => r.json())
+      .then((accs) => setAccounts(Array.isArray(accs) ? accs : []));
   }, []);
+
+  const categoryOptions = categorySelectOptions(categories);
 
   async function saveManual() {
     setError(null);
@@ -75,6 +86,8 @@ export default function AddExpensePage() {
           date,
           category_id: categoryId,
           store_id: storeId,
+          account_id: accountId || null,
+          payment_method: paymentMethod || null,
           transaction_type: transactionType,
         }),
       });
@@ -108,6 +121,8 @@ export default function AddExpensePage() {
         amount: String(r.extracted.amount),
         merchant: r.extracted.merchant,
         categoryId: r.matched_category_id ?? categories[0]?.id ?? "",
+        accountId: "",
+        paymentMethod: "",
         transactionType: r.extracted.transaction_type,
         date: r.extracted.date,
         notes: "",
@@ -161,6 +176,8 @@ export default function AddExpensePage() {
           date: item.date,
           category_id: item.categoryId || null,
           store_id: storeId,
+          account_id: item.accountId || null,
+          payment_method: item.paymentMethod || null,
           transaction_type: item.transactionType,
           raw_sms_hash: item.rawSmsHash,
         }),
@@ -292,9 +309,47 @@ export default function AddExpensePage() {
                   onChange={(e) => setCategoryId(e.target.value)}
                   className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
                 >
-                  {categories.map((c) => (
+                  {categoryOptions.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="h-px bg-separator mr-3.5" />
+              <div className="flex items-center justify-between px-3.5 py-3">
+                <label htmlFor="mAccount" className="text-[14.5px]">
+                  الحساب
+                </label>
+                <select
+                  id="mAccount"
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
+                >
+                  <option value="">بدون حساب</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="h-px bg-separator mr-3.5" />
+              <div className="flex items-center justify-between px-3.5 py-3">
+                <label htmlFor="mPaymentMethod" className="text-[14.5px]">
+                  وسيلة الدفع
+                </label>
+                <select
+                  id="mPaymentMethod"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
+                >
+                  <option value="">غير محددة</option>
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
                     </option>
                   ))}
                 </select>
@@ -435,9 +490,41 @@ export default function AddExpensePage() {
                         onChange={(e) => updateItem(item.key, { categoryId: e.target.value })}
                         className="bg-transparent text-[13.5px] text-ink-muted text-right border-none outline-none"
                       >
-                        {categories.map((c) => (
+                        {categoryOptions.map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.name}
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="h-px bg-separator mr-3.5" />
+                    <div className="flex items-center justify-between px-3.5 py-2.5">
+                      <label className="text-[13.5px]">الحساب</label>
+                      <select
+                        value={item.accountId}
+                        onChange={(e) => updateItem(item.key, { accountId: e.target.value })}
+                        className="bg-transparent text-[13.5px] text-ink-muted text-right border-none outline-none"
+                      >
+                        <option value="">بدون حساب</option>
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="h-px bg-separator mr-3.5" />
+                    <div className="flex items-center justify-between px-3.5 py-2.5">
+                      <label className="text-[13.5px]">وسيلة الدفع</label>
+                      <select
+                        value={item.paymentMethod}
+                        onChange={(e) => updateItem(item.key, { paymentMethod: e.target.value })}
+                        className="bg-transparent text-[13.5px] text-ink-muted text-right border-none outline-none"
+                      >
+                        <option value="">غير محددة</option>
+                        {PAYMENT_METHODS.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
                           </option>
                         ))}
                       </select>

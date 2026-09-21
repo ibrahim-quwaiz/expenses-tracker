@@ -42,6 +42,11 @@ export default function SettingsPage() {
             <ChevronLeftIcon className="text-[#C7C7CC]" />
           </Link>
           <div className="h-px bg-separator mr-3.5" />
+          <Link href="/accounts" className="flex items-center gap-3 px-3.5 py-3">
+            <span className="flex-1 text-[14.5px]">الحسابات</span>
+            <ChevronLeftIcon className="text-[#C7C7CC]" />
+          </Link>
+          <div className="h-px bg-separator mr-3.5" />
           <div className="flex items-center gap-3 px-3.5 py-3">
             <span className="flex-1 text-[14.5px] text-ink-faint">الميزانيات الشهرية</span>
             <span className="text-xs text-ink-faint">قريبًا</span>
