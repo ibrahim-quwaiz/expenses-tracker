@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronRightIcon } from "@/components/icons";
-import { formatAmount, formatDayMonthYear, formatTime, initial } from "@/lib/format";
+import { ChevronRightIcon, CameraIcon } from "@/components/icons";
+import StoreAvatar from "@/components/StoreAvatar";
+import { formatAmount, formatDayMonthYear, formatTime } from "@/lib/format";
 import { TRANSACTION_TYPE_LABELS } from "@/lib/types";
 import type { Expense } from "@/lib/types";
 
@@ -20,6 +21,8 @@ export default function TransactionDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/expenses/${id}`)
@@ -33,6 +36,24 @@ export default function TransactionDetailsPage() {
       .then((data) => data && setExpense(data))
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function handleLogoSelected(file: File | undefined) {
+    if (!file || !expense?.store_id) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/stores/${expense.store_id}/logo`, { method: "POST", body: form });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "تعذر رفع الشعار");
+      setExpense((prev) => (prev ? { ...prev, store_logo_url: body.logo_url } : prev));
+    } catch (e: any) {
+      setUploadError(e.message ?? "حدث خطأ غير متوقع");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleDelete() {
     if (!confirm("هل تريد حذف هذه الحركة؟")) return;
@@ -67,13 +88,27 @@ export default function TransactionDetailsPage() {
         {expense && (
           <>
             <div className="pt-6.5 pb-5.5 text-center px-4">
-              <div className="w-[52px] h-[52px] rounded-full bg-fill text-[#48484A] flex items-center justify-center font-semibold text-lg mx-auto mb-3.5">
-                {initial(expense.store_name)}
+              <div className="relative w-[52px] h-[52px] mx-auto mb-3.5">
+                <StoreAvatar name={expense.store_name} logoUrl={expense.store_logo_url} size={52} />
+                {expense.store_id && (
+                  <label className="absolute -bottom-0.5 -left-0.5 w-[22px] h-[22px] rounded-full bg-primary text-white flex items-center justify-center border-2 border-bg cursor-pointer">
+                    <CameraIcon />
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={(e) => handleLogoSelected(e.target.files?.[0])}
+                    />
+                  </label>
+                )}
               </div>
               <div className="text-[30px] font-bold tabular-nums tracking-tight">
                 {formatAmount(expense.amount)} <span className="text-sm font-medium text-ink-muted">ر.س</span>
               </div>
               <div className="text-[14.5px] text-ink-muted mt-1">{expense.store_name ?? "بدون جهة"}</div>
+              {uploading && <div className="text-xs text-ink-muted mt-1">جارٍ رفع الشعار...</div>}
+              {uploadError && <div className="text-xs text-danger mt-1">{uploadError}</div>}
             </div>
 
             <div className="px-4 pb-5">

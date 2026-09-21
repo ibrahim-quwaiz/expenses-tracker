@@ -38,6 +38,7 @@ export type Expense = {
   category_name: string | null;
   store_id: string | null;
   store_name: string | null;
+  store_logo_url: string | null;
   transaction_type: TransactionType;
   source: string;
   created_at: string;

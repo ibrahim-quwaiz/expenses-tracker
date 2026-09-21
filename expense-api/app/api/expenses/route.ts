@@ -44,7 +44,8 @@ export async function GET(req: NextRequest) {
 
     const { rows } = await pool.query(
       `SELECT e.id, e.amount, e.description, e.date, e.category_id, c.name AS category_name,
-              e.store_id, s.name AS store_name, e.transaction_type, e.source, e.created_at, e.updated_at
+              e.store_id, s.name AS store_name, s.logo_url AS store_logo_url,
+              e.transaction_type, e.source, e.created_at, e.updated_at
        FROM expenses e
        LEFT JOIN categories c ON c.id = e.category_id
        LEFT JOIN stores s ON s.id = e.store_id

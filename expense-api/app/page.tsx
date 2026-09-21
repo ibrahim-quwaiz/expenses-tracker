@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import BottomNav from "@/components/BottomNav";
+import StoreAvatar from "@/components/StoreAvatar";
 import { PlusIcon, ChevronRightIcon, ChevronLeftIcon } from "@/components/icons";
 import { useMonthCursor } from "@/lib/useMonthCursor";
-import { formatAmount, formatMonthYear, initial, relativeDayLabel, formatTime } from "@/lib/format";
+import { formatAmount, formatMonthYear, relativeDayLabel, formatTime } from "@/lib/format";
 import type { BudgetStatus, Expense } from "@/lib/types";
 
 export default function HomePage() {
@@ -142,9 +143,7 @@ export default function HomePage() {
             {expenses.slice(0, 5).map((e, i, arr) => (
               <div key={e.id}>
                 <Link href={`/transactions/${e.id}`} className="flex items-center gap-3 px-3.5 py-2.5">
-                  <div className="w-[34px] h-[34px] rounded-full bg-fill text-[#48484A] flex items-center justify-center font-semibold text-[13px] flex-shrink-0">
-                    {initial(e.store_name)}
-                  </div>
+                  <StoreAvatar name={e.store_name} logoUrl={e.store_logo_url} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[14.5px] font-medium truncate">{e.store_name ?? "بدون جهة"}</div>
                     <div className="text-xs text-ink-muted mt-0.5 truncate">
