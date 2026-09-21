@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { extractExpenseFromSms } from "@/lib/claude";
 import { ok, badRequest, serverError, conflict } from "@/lib/http";
+import { tryAutoFetchLogo } from "@/lib/autoLogo";
 
 const normalize = (s: string) => s.trim().toUpperCase();
 
@@ -81,11 +82,17 @@ export async function POST(req: NextRequest) {
 
       await client.query("COMMIT");
 
+      let logoUrl: string | null = null;
+      if (storeCreated) {
+        logoUrl = await tryAutoFetchLogo(storeId, extracted.merchant);
+      }
+
       return ok(
         {
           expense: expenseResult.rows[0],
           store_id: storeId,
           store_created: storeCreated,
+          store_logo_url: logoUrl,
         },
         201,
       );

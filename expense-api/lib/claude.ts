@@ -40,3 +40,30 @@ export async function extractExpenseFromSms(smsText: string): Promise<SmsExtract
 
   return response.parsed_output;
 }
+
+const MerchantDomainSchema = z.object({
+  domain: z
+    .string()
+    .nullable()
+    .describe("The merchant's primary website domain (e.g. starbucks.com), or null if unknown/not a recognizable brand"),
+});
+
+/** Best-effort guess of a well-known merchant's website domain, used to fetch a logo. Returns null for unrecognized/local businesses. */
+export async function guessMerchantDomain(merchantName: string): Promise<string | null> {
+  try {
+    const response = await client.messages.parse({
+      model: "claude-opus-5",
+      max_tokens: 300,
+      output_config: { effort: "low", format: zodOutputFormat(MerchantDomainSchema) },
+      system:
+        "Given a merchant/store name (often in Arabic, possibly a Saudi/Gulf business), return its official " +
+        "website domain if it's a well-known local or international brand (e.g. 'ستاربكس' -> starbucks.com, " +
+        "'البيك' -> albaik.com, 'نون' -> noon.com). Return null if the name is generic, unrecognizable, or " +
+        "clearly a small/local/unbranded business.",
+      messages: [{ role: "user", content: merchantName }],
+    });
+    return response.parsed_output?.domain ?? null;
+  } catch {
+    return null;
+  }
+}

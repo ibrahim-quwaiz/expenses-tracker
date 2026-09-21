@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { ok, badRequest, serverError, conflict } from "@/lib/http";
+import { tryAutoFetchLogo } from "@/lib/autoLogo";
 
 const normalize = (s: string) => s.trim().toUpperCase();
 
@@ -60,6 +61,12 @@ export async function POST(req: NextRequest) {
     }
 
     await client.query("COMMIT");
+
+    if (!store.logo_url) {
+      const autoLogoUrl = await tryAutoFetchLogo(store.id, name);
+      if (autoLogoUrl) store.logo_url = autoLogoUrl;
+    }
+
     return ok({ ...store, aliases: aliasPatterns }, 201);
   } catch (error: any) {
     await client.query("ROLLBACK");
