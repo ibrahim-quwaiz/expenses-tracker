@@ -33,6 +33,7 @@ export default function AddExpensePage() {
   const [tab, setTab] = useState<"manual" | "sms">("manual");
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
 
   // manual tab
   const [amount, setAmount] = useState("");
@@ -62,7 +63,12 @@ export default function AddExpensePage() {
       });
     fetch("/api/accounts")
       .then((r) => r.json())
-      .then((accs) => setAccounts(Array.isArray(accs) ? accs : []));
+      .then((accs) => {
+        const list = Array.isArray(accs) ? accs : [];
+        setAccounts(list);
+        setAccountId((prev) => prev || list?.[0]?.id || "");
+        setAccountsLoaded(true);
+      });
   }, []);
 
   const categoryOptions = categorySelectOptions(categories);
@@ -73,6 +79,7 @@ export default function AddExpensePage() {
     if (!amountNum || amountNum <= 0) return setError("أدخل مبلغًا صحيحًا");
     if (!merchant.trim()) return setError("أدخل اسم التاجر");
     if (!categoryId) return setError("اختر التصنيف");
+    if (!accountId) return setError("اختر الحساب");
 
     setSaving(true);
     try {
@@ -121,7 +128,7 @@ export default function AddExpensePage() {
         amount: String(r.extracted.amount),
         merchant: r.extracted.merchant,
         categoryId: r.matched_category_id ?? categories[0]?.id ?? "",
-        accountId: "",
+        accountId: accounts[0]?.id ?? "",
         paymentMethod: "",
         transactionType: r.extracted.transaction_type,
         date: r.extracted.date,
@@ -162,6 +169,10 @@ export default function AddExpensePage() {
     }
     if (!item.merchant.trim()) {
       updateItem(item.key, { error: "أدخل اسم التاجر" });
+      return false;
+    }
+    if (!item.accountId) {
+      updateItem(item.key, { error: "اختر الحساب" });
       return false;
     }
     updateItem(item.key, { saving: true, error: null });
@@ -220,14 +231,18 @@ export default function AddExpensePage() {
         </Link>
         <div className="text-[15px] font-semibold">مصروف جديد</div>
         {tab === "manual" && (
-          <button onClick={saveManual} disabled={saving} className="text-[15px] font-bold text-primary disabled:opacity-40">
+          <button
+            onClick={saveManual}
+            disabled={saving || accounts.length === 0}
+            className="text-[15px] font-bold text-primary disabled:opacity-40"
+          >
             {saving ? "..." : "حفظ"}
           </button>
         )}
         {tab === "sms" && pendingCount > 0 && (
           <button
             onClick={saveAll}
-            disabled={savingAll}
+            disabled={savingAll || accounts.length === 0}
             className="text-[15px] font-bold text-primary disabled:opacity-40"
           >
             {savingAll ? "..." : `حفظ الكل (${pendingCount})`}
@@ -265,6 +280,15 @@ export default function AddExpensePage() {
             </button>
           </div>
         </div>
+
+        {accountsLoaded && accounts.length === 0 && (
+          <div className="mx-4 mt-3.5 rounded-[10px] bg-warning/10 px-3.5 py-3 text-[13.5px] text-ink">
+            لازم تضيف حساب بنكي أولًا قبل تسجيل أي مصروف —{" "}
+            <Link href="/accounts" className="font-semibold text-primary">
+              أضف حسابًا الآن
+            </Link>
+          </div>
+        )}
 
         {tab === "manual" && (
           <div className="px-4 pt-3.5 pb-6">
@@ -327,7 +351,7 @@ export default function AddExpensePage() {
                   onChange={(e) => setAccountId(e.target.value)}
                   className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
                 >
-                  <option value="">بدون حساب</option>
+                  {!accountId && <option value="" disabled hidden>اختر الحساب</option>}
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -505,7 +529,7 @@ export default function AddExpensePage() {
                         onChange={(e) => updateItem(item.key, { accountId: e.target.value })}
                         className="bg-transparent text-[13.5px] text-ink-muted text-right border-none outline-none"
                       >
-                        <option value="">بدون حساب</option>
+                        {!item.accountId && <option value="" disabled hidden>اختر الحساب</option>}
                         {accounts.map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.name}

@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     }
     if (!date) return badRequest("date is required");
     if (!store_id) return badRequest("store_id is required");
+    if (!account_id) return badRequest("account_id is required");
     if (!raw_sms_hash || typeof raw_sms_hash !== "string") {
       return badRequest("raw_sms_hash is required");
     }

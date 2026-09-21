@@ -55,6 +55,7 @@ export default function EditTransactionPage() {
     const amountNum = parseFloat(amount);
     if (!amountNum || amountNum <= 0) return setError("أدخل مبلغًا صحيحًا");
     if (!merchant.trim()) return setError("أدخل اسم التاجر");
+    if (!accountId) return setError("اختر الحساب");
 
     setSaving(true);
     try {
@@ -92,7 +93,11 @@ export default function EditTransactionPage() {
           إلغاء
         </Link>
         <div className="text-[15px] font-semibold">تعديل الحركة</div>
-        <button onClick={save} disabled={saving} className="text-[15px] font-bold text-primary disabled:opacity-40">
+        <button
+          onClick={save}
+          disabled={saving || accounts.length === 0}
+          className="text-[15px] font-bold text-primary disabled:opacity-40"
+        >
           {saving ? "..." : "حفظ"}
         </button>
       </div>
@@ -166,7 +171,7 @@ export default function EditTransactionPage() {
                     onChange={(e) => setAccountId(e.target.value)}
                     className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
                   >
-                    <option value="">بدون حساب</option>
+                    {!accountId && <option value="" disabled hidden>اختر الحساب</option>}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.name}

@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
       return badRequest("amount must be a non-negative number");
     }
     if (!date) return badRequest("date is required");
+    if (!account_id) return badRequest("account_id is required");
     const type = transaction_type ?? "purchase";
     if (!VALID_TYPES.includes(type)) {
       return badRequest(`transaction_type must be one of: ${VALID_TYPES.join(", ")}`);
