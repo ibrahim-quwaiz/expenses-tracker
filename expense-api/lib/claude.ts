@@ -15,30 +15,49 @@ export const SmsExtractionSchema = z.object({
     "transfer_in",
     "refund",
   ]),
+  raw_text: z
+    .string()
+    .describe(
+      "The exact original SMS message text this transaction was extracted from, copied verbatim " +
+        "(used to detect duplicate submissions of the same message)",
+    ),
 });
 
 export type SmsExtraction = z.infer<typeof SmsExtractionSchema>;
 
-export async function extractExpenseFromSms(smsText: string): Promise<SmsExtraction> {
+const SmsBatchSchema = z.object({
+  transactions: z.array(SmsExtractionSchema),
+});
+
+/**
+ * Extracts one or more transactions from a block of text that may contain several bank SMS
+ * notifications pasted together (separated by blank lines, or simply concatenated).
+ */
+export async function extractExpensesFromSms(smsText: string): Promise<SmsExtraction[]> {
   const response = await client.messages.parse({
     model: "claude-opus-5",
-    max_tokens: 2000,
+    max_tokens: 4000,
     system:
-      "You extract structured expense data from Arabic or English bank SMS notifications. " +
-      "Use today's date only if the message has no date. Amount must be a positive number without currency symbols. " +
-      "Pick transaction_type based on the wording: purchases/POS -> purchase, bill/invoice payments -> bill_payment, " +
-      "outgoing transfers -> transfer_out, incoming transfers -> transfer_in, refunds/reversals -> refund.",
+      "You extract structured expense data from Arabic or English bank SMS notifications. The user may paste " +
+      "ONE OR MORE separate SMS messages in a single block of text, often separated by blank lines or simply " +
+      "concatenated one after another. Identify each distinct transaction message and return one entry per " +
+      "transaction in the `transactions` array (an input with a single message still returns an array with one " +
+      "item). For each entry, `raw_text` must be the exact verbatim substring of the input for that specific " +
+      "message — copy it exactly, do not paraphrase, translate, or trim it. Use today's date only if a message " +
+      "has no date. Amount must be a positive number without currency symbols. Pick transaction_type based on " +
+      "the wording: purchases/POS -> purchase, bill/invoice payments -> bill_payment, outgoing transfers -> " +
+      "transfer_out, incoming transfers -> transfer_in, refunds/reversals -> refund.",
     messages: [{ role: "user", content: smsText }],
     output_config: {
-      format: zodOutputFormat(SmsExtractionSchema),
+      format: zodOutputFormat(SmsBatchSchema),
     },
   });
 
-  if (!response.parsed_output) {
+  if (!response.parsed_output || response.parsed_output.transactions.length === 0) {
     throw new Error("Claude failed to extract structured data from the SMS text");
   }
 
-  return response.parsed_output;
+  return response.parsed_output.transactions;
 }
 
 const MerchantBrandSchema = z.object({
