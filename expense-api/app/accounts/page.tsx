@@ -6,7 +6,85 @@ import { ChevronRightIcon, PlusIcon } from "@/components/icons";
 import { formatAmount } from "@/lib/format";
 import type { Account } from "@/lib/types";
 
-type EditState = { name: string; account_number: string; balance: string };
+type EditState = { name: string; card_last4: string[]; balance: string };
+
+const LAST4_RE = /^\d{4}$/;
+
+function CardLast4Editor({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  function addCard() {
+    const v = draft.trim();
+    if (!v) return;
+    if (!LAST4_RE.test(v)) return setErr("أدخل آخر 4 أرقام من البطاقة فقط");
+    if (value.includes(v)) return setErr("هذا الرقم مضاف مسبقًا");
+    onChange([...value, v]);
+    setDraft("");
+    setErr(null);
+  }
+
+  return (
+    <div>
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {value.map((v) => (
+            <span
+              key={v}
+              className="flex items-center gap-1 bg-fill rounded-full pl-1 pr-2.5 py-1 text-xs tabular-nums"
+              dir="ltr"
+            >
+              •••• {v}
+              <button
+                type="button"
+                onClick={() => onChange(value.filter((x) => x !== v))}
+                aria-label="حذف البطاقة"
+                className="w-4 h-4 rounded-full bg-ink-faint/20 text-ink-muted text-[10px] leading-4 text-center"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={4}
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value.replace(/\D/g, ""));
+            setErr(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addCard();
+            }
+          }}
+          placeholder="آخر 4 أرقام من البطاقة"
+          className="flex-1 border border-separator rounded-lg px-3 py-2 text-sm outline-none"
+          dir="ltr"
+        />
+        <button
+          type="button"
+          onClick={addCard}
+          className="px-3 rounded-lg bg-fill text-sm font-semibold text-ink"
+        >
+          إضافة
+        </button>
+      </div>
+      {err && <div className="text-xs text-danger mt-1">{err}</div>}
+    </div>
+  );
+}
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -14,13 +92,13 @@ export default function AccountsPage() {
 
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newNumber, setNewNumber] = useState("");
+  const [newCards, setNewCards] = useState<string[]>([]);
   const [newBalance, setNewBalance] = useState("");
   const [savingNew, setSavingNew] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [edit, setEdit] = useState<EditState>({ name: "", account_number: "", balance: "" });
+  const [edit, setEdit] = useState<EditState>({ name: "", card_last4: [], balance: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -44,7 +122,7 @@ export default function AccountsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newName.trim(),
-          account_number: newNumber.trim() || null,
+          card_last4: newCards,
           balance: newBalance ? parseFloat(newBalance) : 0,
         }),
       });
@@ -53,7 +131,7 @@ export default function AccountsPage() {
         throw new Error(body.error ?? "تعذر إضافة الحساب");
       }
       setNewName("");
-      setNewNumber("");
+      setNewCards([]);
       setNewBalance("");
       setAdding(false);
       load();
@@ -66,7 +144,7 @@ export default function AccountsPage() {
 
   function startEdit(acc: Account) {
     setEditingId(acc.id);
-    setEdit({ name: acc.name, account_number: acc.account_number ?? "", balance: acc.balance });
+    setEdit({ name: acc.name, card_last4: acc.card_last4 ?? [], balance: acc.balance });
     setEditError(null);
   }
 
@@ -80,7 +158,7 @@ export default function AccountsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: edit.name.trim(),
-          account_number: edit.account_number.trim() || null,
+          card_last4: edit.card_last4,
           balance: parseFloat(edit.balance || "0"),
         }),
       });
@@ -132,14 +210,7 @@ export default function AccountsPage() {
               placeholder="اسم البنك"
               className="border border-separator rounded-lg px-3 py-2 text-sm outline-none"
             />
-            <input
-              type="text"
-              value={newNumber}
-              onChange={(e) => setNewNumber(e.target.value)}
-              placeholder="رقم الحساب (اختياري)"
-              className="border border-separator rounded-lg px-3 py-2 text-sm outline-none"
-              dir="ltr"
-            />
+            <CardLast4Editor value={newCards} onChange={setNewCards} />
             <input
               type="number"
               step="0.01"
@@ -174,13 +245,9 @@ export default function AccountsPage() {
                   onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))}
                   className="border border-separator rounded-lg px-3 py-2 text-sm outline-none"
                 />
-                <input
-                  type="text"
-                  value={edit.account_number}
-                  onChange={(e) => setEdit((s) => ({ ...s, account_number: e.target.value }))}
-                  placeholder="رقم الحساب (اختياري)"
-                  className="border border-separator rounded-lg px-3 py-2 text-sm outline-none"
-                  dir="ltr"
+                <CardLast4Editor
+                  value={edit.card_last4}
+                  onChange={(next) => setEdit((s) => ({ ...s, card_last4: next }))}
                 />
                 <input
                   type="number"
@@ -214,9 +281,9 @@ export default function AccountsPage() {
               >
                 <div>
                   <div className="text-[14.5px] font-medium">{acc.name}</div>
-                  {acc.account_number && (
-                    <div className="text-xs text-ink-muted mt-0.5" dir="ltr">
-                      {acc.account_number}
+                  {acc.card_last4?.length > 0 && (
+                    <div className="text-xs text-ink-muted mt-0.5 tabular-nums" dir="ltr">
+                      {acc.card_last4.map((v) => `•••• ${v}`).join("   ")}
                     </div>
                   )}
                 </div>

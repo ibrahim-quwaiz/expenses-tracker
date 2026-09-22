@@ -10,7 +10,7 @@ export type Category = {
 export type Account = {
   id: string;
   name: string;
-  account_number: string | null;
+  card_last4: string[];
   balance: string;
   created_at: string;
   updated_at: string;

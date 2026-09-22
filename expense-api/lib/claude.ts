@@ -15,6 +15,14 @@ export const SmsExtractionSchema = z.object({
     "transfer_in",
     "refund",
   ]),
+  card_last4: z
+    .string()
+    .nullable()
+    .describe(
+      "The last 4 digits of the card or account number mentioned in the message (e.g. from phrasing like " +
+        "'بطاقة تنتهي بـ 1234' or 'account ending 1234'), as a 4-digit string. Null if no such number is " +
+        "mentioned in the message.",
+    ),
   raw_text: z
     .string()
     .describe(
@@ -46,7 +54,8 @@ export async function extractExpensesFromSms(smsText: string): Promise<SmsExtrac
       "message — copy it exactly, do not paraphrase, translate, or trim it. Use today's date only if a message " +
       "has no date. Amount must be a positive number without currency symbols. Pick transaction_type based on " +
       "the wording: purchases/POS -> purchase, bill/invoice payments -> bill_payment, outgoing transfers -> " +
-      "transfer_out, incoming transfers -> transfer_in, refunds/reversals -> refund.",
+      "transfer_out, incoming transfers -> transfer_in, refunds/reversals -> refund. Also extract card_last4 " +
+      "if the message mentions the last 4 digits of a card or account number.",
     messages: [{ role: "user", content: smsText }],
     output_config: {
       format: zodOutputFormat(SmsBatchSchema),

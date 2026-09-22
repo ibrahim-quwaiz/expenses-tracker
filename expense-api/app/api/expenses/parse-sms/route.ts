@@ -37,6 +37,15 @@ export async function POST(req: NextRequest) {
         );
         const matchedStore = aliasMatch.rows[0] ?? null;
 
+        let matchedAccountId: string | null = null;
+        if (item.card_last4) {
+          const accountMatch = await pool.query(
+            "SELECT id FROM accounts WHERE $1 = ANY(card_last4) LIMIT 1",
+            [item.card_last4],
+          );
+          matchedAccountId = accountMatch.rows[0]?.id ?? null;
+        }
+
         return {
           extracted: {
             amount: item.amount,
@@ -47,6 +56,7 @@ export async function POST(req: NextRequest) {
           raw_sms_hash: rawSmsHash,
           matched_store_id: matchedStore?.id ?? null,
           matched_category_id: matchedStore?.default_category_id ?? null,
+          matched_account_id: matchedAccountId,
           duplicate: existing.rows.length > 0,
         };
       }),

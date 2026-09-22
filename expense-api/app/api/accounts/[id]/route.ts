@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { ok, badRequest, notFound, serverError } from "@/lib/http";
+import { normalizeCardLast4 } from "@/lib/cardLast4";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const body = await req.json();
-    const { name, account_number, balance } = body ?? {};
+    const { name, card_last4, balance } = body ?? {};
 
     if (!name || typeof name !== "string") {
       return badRequest("name is required");
@@ -14,12 +15,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (balance === undefined || Number.isNaN(Number(balance))) {
       return badRequest("balance must be a number");
     }
+    const cardLast4 = normalizeCardLast4(card_last4);
+    if (cardLast4 === null) {
+      return badRequest("card_last4 must be an array of 4-digit strings");
+    }
 
     const { rows } = await pool.query(
-      `UPDATE accounts SET name = $1, account_number = $2, balance = $3
+      `UPDATE accounts SET name = $1, card_last4 = $2, balance = $3
        WHERE id = $4
-       RETURNING id, name, account_number, balance, created_at, updated_at`,
-      [name, account_number ?? null, balance, id],
+       RETURNING id, name, card_last4, balance, created_at, updated_at`,
+      [name, cardLast4, balance, id],
     );
 
     if (rows.length === 0) return notFound("Account not found");

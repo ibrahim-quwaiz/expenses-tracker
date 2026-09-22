@@ -128,7 +128,7 @@ export default function AddExpensePage() {
         amount: String(r.extracted.amount),
         merchant: r.extracted.merchant,
         categoryId: r.matched_category_id ?? categories[0]?.id ?? "",
-        accountId: accounts[0]?.id ?? "",
+        accountId: r.matched_account_id ?? accounts[0]?.id ?? "",
         paymentMethod: "",
         transactionType: r.extracted.transaction_type,
         date: r.extracted.date,
