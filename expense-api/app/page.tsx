@@ -148,7 +148,7 @@ export default function HomePage() {
                     <div className="text-[14.5px] font-medium truncate">{e.store_name ?? "بدون جهة"}</div>
                     <div className="text-xs text-ink-muted mt-0.5 truncate">
                       {e.category_name ?? "بدون تصنيف"} &middot; {relativeDayLabel(e.date)}
-                      {relativeDayLabel(e.date) === "اليوم" ? ` ${formatTime(e.created_at)}` : ""}
+                      {relativeDayLabel(e.date) === "اليوم" ? ` ${formatTime(e.date)}` : ""}
                     </div>
                   </div>
                   <div className="text-[14.5px] tabular-nums flex-shrink-0">{formatAmount(e.amount)} ر.س</div>

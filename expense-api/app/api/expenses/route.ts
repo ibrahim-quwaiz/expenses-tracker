@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { ok, badRequest, serverError } from "@/lib/http";
 import { balanceDelta, adjustAccountBalance } from "@/lib/accountBalance";
+import { combineDateTime } from "@/lib/dateTime";
 
 const VALID_TYPES = ["purchase", "bill_payment", "transfer_out", "transfer_in", "refund"];
 
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
     }
     if (to) {
       params.push(to);
-      conditions.push(`e.date <= $${params.length}`);
+      conditions.push(`e.date < ($${params.length}::date + interval '1 day')`);
     }
     if (transaction_type) {
       if (!VALID_TYPES.includes(transaction_type)) {
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
     if (!VALID_TYPES.includes(type)) {
       return badRequest(`transaction_type must be one of: ${VALID_TYPES.join(", ")}`);
     }
+    const occurredAt = combineDateTime(date);
 
     await client.query("BEGIN");
 
@@ -93,7 +95,7 @@ export async function POST(req: NextRequest) {
       `INSERT INTO expenses (amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, source)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'manual')
        RETURNING id, amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, source, created_at, updated_at`,
-      [amount, description ?? null, date, category_id ?? null, store_id ?? null, account_id ?? null, payment_method ?? null, type],
+      [amount, description ?? null, occurredAt, category_id ?? null, store_id ?? null, account_id ?? null, payment_method ?? null, type],
     );
 
     await adjustAccountBalance(client, account_id, balanceDelta(Number(amount), type));

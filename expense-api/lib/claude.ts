@@ -8,6 +8,13 @@ export const SmsExtractionSchema = z.object({
   amount: z.number(),
   merchant: z.string(),
   date: z.string(), // YYYY-MM-DD
+  time: z
+    .string()
+    .nullable()
+    .describe(
+      "The time of day the transaction occurred, as mentioned in the message (24-hour HH:MM, local Saudi " +
+        "time, e.g. '17:58'). Null if the message does not mention a time.",
+    ),
   transaction_type: z.enum([
     "purchase",
     "bill_payment",
@@ -55,7 +62,8 @@ export async function extractExpensesFromSms(smsText: string): Promise<SmsExtrac
       "has no date. Amount must be a positive number without currency symbols. Pick transaction_type based on " +
       "the wording: purchases/POS -> purchase, bill/invoice payments -> bill_payment, outgoing transfers -> " +
       "transfer_out, incoming transfers -> transfer_in, refunds/reversals -> refund. Also extract card_last4 " +
-      "if the message mentions the last 4 digits of a card or account number.",
+      "if the message mentions the last 4 digits of a card or account number, and extract the time of day " +
+      "(24-hour HH:MM, local Saudi time) if the message mentions one.",
     messages: [{ role: "user", content: smsText }],
     output_config: {
       format: zodOutputFormat(SmsBatchSchema),

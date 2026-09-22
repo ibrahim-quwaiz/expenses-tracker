@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { ok, badRequest, serverError, conflict } from "@/lib/http";
 import { balanceDelta, adjustAccountBalance } from "@/lib/accountBalance";
+import { combineDateTime } from "@/lib/dateTime";
 
 const VALID_TYPES = ["purchase", "bill_payment", "transfer_out", "transfer_in", "refund"];
 
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
   const client = await pool.connect();
   try {
     const body = await req.json();
-    const { amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, raw_sms_hash } =
+    const { amount, description, date, time, category_id, store_id, account_id, payment_method, transaction_type, raw_sms_hash } =
       body ?? {};
 
     if (amount === undefined || Number(amount) < 0) {
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
     if (!VALID_TYPES.includes(type)) {
       return badRequest(`transaction_type must be one of: ${VALID_TYPES.join(", ")}`);
     }
+    const occurredAt = combineDateTime(date, time);
 
     await client.query("BEGIN");
 
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
       `INSERT INTO expenses (amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, raw_sms_hash, source)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'sms_paste')
        RETURNING id, amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, source, created_at, updated_at`,
-      [amount, description ?? null, date, category_id ?? null, store_id, account_id ?? null, payment_method ?? null, type, raw_sms_hash],
+      [amount, description ?? null, occurredAt, category_id ?? null, store_id, account_id ?? null, payment_method ?? null, type, raw_sms_hash],
     );
 
     await adjustAccountBalance(client, account_id, balanceDelta(Number(amount), type));

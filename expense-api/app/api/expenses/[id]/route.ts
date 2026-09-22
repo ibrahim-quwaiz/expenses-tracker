@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { ok, badRequest, notFound, serverError } from "@/lib/http";
 import { balanceDelta, adjustAccountBalance } from "@/lib/accountBalance";
+import { combineDateTime, timeOfDay } from "@/lib/dateTime";
 
 const VALID_TYPES = ["purchase", "bill_payment", "transfer_out", "transfer_in", "refund"];
 
@@ -48,7 +49,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await client.query("BEGIN");
 
     const existing = await client.query(
-      "SELECT amount, transaction_type, account_id FROM expenses WHERE id = $1 FOR UPDATE",
+      "SELECT amount, transaction_type, account_id, date FROM expenses WHERE id = $1 FOR UPDATE",
       [id],
     );
     if (existing.rows.length === 0) {
@@ -56,6 +57,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return notFound("Expense not found");
     }
     const prev = existing.rows[0];
+    const occurredAt = combineDateTime(date, timeOfDay(prev.date));
 
     const { rows } = await client.query(
       `UPDATE expenses
@@ -63,7 +65,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
            account_id = $6, payment_method = $7, transaction_type = $8
        WHERE id = $9
        RETURNING id, amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, source, created_at, updated_at`,
-      [amount, description ?? null, date, category_id ?? null, store_id ?? null, account_id ?? null, payment_method ?? null, type, id],
+      [amount, description ?? null, occurredAt, category_id ?? null, store_id ?? null, account_id ?? null, payment_method ?? null, type, id],
     );
 
     // reverse the previous effect, then apply the new one

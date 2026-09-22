@@ -20,6 +20,7 @@ type SmsItem = {
   paymentMethod: string;
   transactionType: TransactionType;
   date: string;
+  time: string | null;
   notes: string;
   rawSmsHash: string;
   duplicate: boolean;
@@ -132,6 +133,7 @@ export default function AddExpensePage() {
         paymentMethod: "",
         transactionType: r.extracted.transaction_type,
         date: r.extracted.date,
+        time: r.extracted.time ?? null,
         notes: "",
         rawSmsHash: r.raw_sms_hash,
         duplicate: r.duplicate,
@@ -185,6 +187,7 @@ export default function AddExpensePage() {
           amount: amountNum,
           description: item.notes.trim() || null,
           date: item.date,
+          time: item.time,
           category_id: item.categoryId || null,
           store_id: storeId,
           account_id: item.accountId || null,

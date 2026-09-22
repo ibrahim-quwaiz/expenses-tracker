@@ -118,7 +118,7 @@ export default function TransactionsPage() {
                       <div className="text-[14.5px] font-medium truncate">{e.store_name ?? "بدون جهة"}</div>
                       <div className="text-xs text-ink-muted mt-0.5 truncate">
                         {e.category_name ?? "بدون تصنيف"} &middot; {TRANSACTION_TYPE_LABELS[e.transaction_type]} &middot;{" "}
-                        {formatTime(e.created_at)}
+                        {formatTime(e.date)}
                       </div>
                     </div>
                     <div className="text-[14.5px] tabular-nums flex-shrink-0">{formatAmount(e.amount)} ر.س</div>

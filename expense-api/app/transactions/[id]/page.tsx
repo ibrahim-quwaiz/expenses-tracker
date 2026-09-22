@@ -121,7 +121,7 @@ export default function TransactionDetailsPage() {
                 <div className="flex items-center justify-between px-3.5 py-3">
                   <span className="text-[14.5px] text-ink-muted">التاريخ والوقت</span>
                   <span className="text-[14.5px] tabular-nums">
-                    {formatDayMonthYear(expense.date)}، {formatTime(expense.created_at)}
+                    {formatDayMonthYear(expense.date)}، {formatTime(expense.date)}
                   </span>
                 </div>
                 <div className="h-px bg-separator mr-3.5" />

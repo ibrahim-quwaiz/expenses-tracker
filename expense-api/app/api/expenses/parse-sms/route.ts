@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
             amount: item.amount,
             merchant: item.merchant,
             date: item.date,
+            time: item.time,
             transaction_type: item.transaction_type,
           },
           raw_sms_hash: rawSmsHash,
