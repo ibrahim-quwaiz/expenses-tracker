@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
       amount,
       description,
       date,
+      time,
       category_id,
       store_id,
       account_id,
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
     if (!VALID_TYPES.includes(type)) {
       return badRequest(`transaction_type must be one of: ${VALID_TYPES.join(", ")}`);
     }
-    const occurredAt = combineDateTime(date);
+    const occurredAt = combineDateTime(date, time);
 
     await client.query("BEGIN");
 

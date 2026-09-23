@@ -26,6 +26,7 @@ export default function EditTransactionPage() {
   const [paymentMethod, setPaymentMethod] = useState("");
   const [transactionType, setTransactionType] = useState<TransactionType>("purchase");
   const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
@@ -43,6 +44,8 @@ export default function EditTransactionPage() {
       setPaymentMethod(exp.payment_method ?? "");
       setTransactionType(exp.transaction_type);
       setDate(exp.date.slice(0, 10));
+      const occurred = new Date(exp.date);
+      setTime(`${String(occurred.getUTCHours()).padStart(2, "0")}:${String(occurred.getUTCMinutes()).padStart(2, "0")}`);
       setNotes(exp.description ?? "");
       setLoading(false);
     });
@@ -67,6 +70,7 @@ export default function EditTransactionPage() {
           amount: amountNum,
           description: notes.trim() || null,
           date,
+          time: time || null,
           category_id: categoryId || null,
           store_id: storeId,
           account_id: accountId || null,
@@ -227,6 +231,20 @@ export default function EditTransactionPage() {
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                     className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
+                  />
+                </div>
+                <div className="h-px bg-separator mr-3.5" />
+                <div className="flex items-center justify-between px-3.5 py-3">
+                  <label htmlFor="eTime" className="text-[14.5px]">
+                    الوقت
+                  </label>
+                  <input
+                    id="eTime"
+                    type="time"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none tabular-nums"
+                    dir="ltr"
                   />
                 </div>
               </div>

@@ -10,6 +10,10 @@ import type { Account, Category, TransactionType } from "@/lib/types";
 import { PAYMENT_METHODS, TRANSACTION_TYPE_LABELS } from "@/lib/types";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const nowHHMM = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
 
 type SmsItem = {
   key: string;
@@ -44,6 +48,7 @@ export default function AddExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState("");
   const [transactionType, setTransactionType] = useState<TransactionType>("purchase");
   const [date, setDate] = useState(todayISO());
+  const [time, setTime] = useState(nowHHMM());
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +97,7 @@ export default function AddExpensePage() {
           amount: amountNum,
           description: notes.trim() || null,
           date,
+          time: time || null,
           category_id: categoryId,
           store_id: storeId,
           account_id: accountId || null,
@@ -412,6 +418,20 @@ export default function AddExpensePage() {
                   className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
                 />
               </div>
+              <div className="h-px bg-separator mr-3.5" />
+              <div className="flex items-center justify-between px-3.5 py-3">
+                <label htmlFor="mTime" className="text-[14.5px]">
+                  الوقت
+                </label>
+                <input
+                  id="mTime"
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none tabular-nums"
+                  dir="ltr"
+                />
+              </div>
             </div>
 
             <div className="bg-surface rounded-[10px] overflow-hidden mt-5">
@@ -581,6 +601,17 @@ export default function AddExpensePage() {
                         value={item.date}
                         onChange={(e) => updateItem(item.key, { date: e.target.value })}
                         className="bg-transparent text-[13.5px] text-ink-muted text-right border-none outline-none"
+                      />
+                    </div>
+                    <div className="h-px bg-separator mr-3.5" />
+                    <div className="flex items-center justify-between px-3.5 py-2.5">
+                      <label className="text-[13.5px]">الوقت</label>
+                      <input
+                        type="time"
+                        value={item.time ?? ""}
+                        onChange={(e) => updateItem(item.key, { time: e.target.value || null })}
+                        className="bg-transparent text-[13.5px] text-ink-muted text-right border-none outline-none tabular-nums"
+                        dir="ltr"
                       />
                     </div>
                   </fieldset>

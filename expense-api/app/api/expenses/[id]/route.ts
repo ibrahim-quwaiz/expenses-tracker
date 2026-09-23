@@ -33,7 +33,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const client = await pool.connect();
   try {
     const body = await req.json();
-    const { amount, description, date, category_id, store_id, account_id, payment_method, transaction_type } =
+    const { amount, description, date, time, category_id, store_id, account_id, payment_method, transaction_type } =
       body ?? {};
 
     if (amount === undefined || Number(amount) < 0) {
@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return notFound("Expense not found");
     }
     const prev = existing.rows[0];
-    const occurredAt = combineDateTime(date, timeOfDay(prev.date));
+    const occurredAt = combineDateTime(date, time ?? timeOfDay(prev.date));
 
     const { rows } = await client.query(
       `UPDATE expenses
