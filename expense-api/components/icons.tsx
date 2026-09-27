@@ -16,6 +16,16 @@ export function ListIcon({ className }: { className?: string }) {
   );
 }
 
+export function WalletIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="3" y="5.5" width="18" height="14" rx="2.5" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <line x1="15.5" y1="15" x2="17.5" y2="15" />
+    </svg>
+  );
+}
+
 export function ChartIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className={className}>

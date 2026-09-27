@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const category_id = sp.get("category_id");
     const store_id = sp.get("store_id");
+    const account_id = sp.get("account_id");
     const from = sp.get("from");
     const to = sp.get("to");
     const transaction_type = sp.get("transaction_type");
@@ -25,6 +26,10 @@ export async function GET(req: NextRequest) {
     if (store_id) {
       params.push(store_id);
       conditions.push(`e.store_id = $${params.length}`);
+    }
+    if (account_id) {
+      params.push(account_id);
+      conditions.push(`e.account_id = $${params.length}`);
     }
     if (from) {
       params.push(from);

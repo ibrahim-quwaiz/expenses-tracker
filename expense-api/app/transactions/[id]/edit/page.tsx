@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { findOrCreateStore } from "@/lib/stores";
@@ -53,6 +52,11 @@ export default function EditTransactionPage() {
 
   const categoryOptions = categorySelectOptions(categories);
 
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push(`/transactions/${id}`);
+  }
+
   async function save() {
     setError(null);
     const amountNum = parseFloat(amount);
@@ -82,7 +86,7 @@ export default function EditTransactionPage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? "تعذر حفظ التعديل");
       }
-      router.push(`/transactions/${id}`);
+      goBack();
     } catch (e: any) {
       setError(e.message ?? "حدث خطأ غير متوقع");
     } finally {
@@ -93,9 +97,9 @@ export default function EditTransactionPage() {
   return (
     <>
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3.5 border-b border-separator">
-        <Link href={`/transactions/${id}`} className="text-[15px] text-primary">
+        <button onClick={goBack} className="text-[15px] text-primary">
           إلغاء
-        </Link>
+        </button>
         <div className="text-[15px] font-semibold">تعديل الحركة</div>
         <button
           onClick={save}

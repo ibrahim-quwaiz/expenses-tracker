@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HomeIcon, ListIcon, ChartIcon, GearIcon } from "./icons";
+import { HomeIcon, ListIcon, WalletIcon, ChartIcon, GearIcon } from "./icons";
 
 const tabs = [
   { href: "/", label: "الرئيسية", Icon: HomeIcon },
   { href: "/transactions", label: "الحركات", Icon: ListIcon },
+  { href: "/accounts", label: "الحسابات", Icon: WalletIcon },
   { href: "/reports", label: "التقارير", Icon: ChartIcon },
   { href: "/settings", label: "الإعدادات", Icon: GearIcon },
 ];

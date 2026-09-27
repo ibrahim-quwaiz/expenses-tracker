@@ -55,12 +55,17 @@ export default function TransactionDetailsPage() {
     }
   }
 
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push("/transactions");
+  }
+
   async function handleDelete() {
     if (!confirm("هل تريد حذف هذه الحركة؟")) return;
     setDeleting(true);
     const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
     if (res.ok) {
-      router.push("/transactions");
+      goBack();
     } else {
       setDeleting(false);
       alert("تعذر حذف الحركة");
@@ -70,10 +75,10 @@ export default function TransactionDetailsPage() {
   return (
     <>
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3.5 border-b border-separator">
-        <Link href="/transactions" className="flex items-center gap-0.5 text-primary text-[15px]">
+        <button onClick={goBack} className="flex items-center gap-0.5 text-primary text-[15px]">
           <ChevronRightIcon />
-          الحركات
-        </Link>
+          رجوع
+        </button>
         {expense && (
           <Link href={`/transactions/${id}/edit`} className="text-[15px] text-primary">
             تعديل
