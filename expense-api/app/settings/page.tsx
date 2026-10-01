@@ -25,6 +25,13 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 export default function SettingsPage() {
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function logout() {
+    setLoggingOut(true);
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    window.location.replace("/login");
+  }
 
   return (
     <>
@@ -67,11 +74,21 @@ export default function SettingsPage() {
         </div>
 
         <div className="text-xs font-semibold text-ink-muted uppercase tracking-wide px-1 pb-1.5">حول</div>
-        <div className="bg-surface rounded-[10px] overflow-hidden">
+        <div className="bg-surface rounded-[10px] overflow-hidden mb-5">
           <div className="flex items-center justify-between px-3.5 py-3">
             <span className="text-[14.5px]">الإصدار</span>
             <span className="text-sm text-ink-muted">1.0.0</span>
           </div>
+        </div>
+
+        <div className="bg-surface rounded-[10px] overflow-hidden">
+          <button
+            onClick={logout}
+            disabled={loggingOut}
+            className="w-full py-3 text-[14.5px] font-medium text-danger text-center disabled:opacity-50"
+          >
+            {loggingOut ? "..." : "تسجيل خروج"}
+          </button>
         </div>
       </div>
 
