@@ -464,6 +464,9 @@ export default function AccountsPage() {
                                   {selected === ALL && !neutral && <>{e.account_name ?? "بدون حساب"} &middot; </>}
                                   {formatTime(e.date)}
                                 </div>
+                                {e.description && (
+                                  <div className="text-xs text-ink-faint mt-0.5 truncate">{e.description}</div>
+                                )}
                               </div>
                               <div
                                 className={`text-[14.5px] tabular-nums flex-shrink-0 ${

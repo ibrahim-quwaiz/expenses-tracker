@@ -154,6 +154,9 @@ export default function HomePage() {
                       &middot; {relativeDayLabel(e.date)}
                       {relativeDayLabel(e.date) === "اليوم" ? ` ${formatTime(e.date)}` : ""}
                     </div>
+                    {e.description && (
+                      <div className="text-xs text-ink-faint mt-0.5 truncate">{e.description}</div>
+                    )}
                   </div>
                   <div className="text-[14.5px] tabular-nums flex-shrink-0">{formatAmount(e.amount)} ر.س</div>
                 </Link>
