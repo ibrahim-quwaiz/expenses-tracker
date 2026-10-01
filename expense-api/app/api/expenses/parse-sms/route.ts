@@ -3,8 +3,7 @@ import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { extractExpensesFromSms } from "@/lib/claude";
 import { ok, badRequest, serverError } from "@/lib/http";
-
-const normalize = (s: string) => s.trim().toUpperCase();
+import { categorySuggestionsForStores, storeIdsForMerchant } from "@/lib/categorySuggestions";
 
 /**
  * Preview-only: extracts one or more transactions from the pasted SMS text via Claude and looks
@@ -28,14 +27,8 @@ export async function POST(req: NextRequest) {
 
         const existing = await pool.query("SELECT id FROM expenses WHERE raw_sms_hash = $1", [rawSmsHash]);
 
-        const pattern = normalize(item.merchant);
-        const aliasMatch = await pool.query(
-          `SELECT s.id, s.default_category_id
-           FROM store_aliases sa JOIN stores s ON s.id = sa.store_id
-           WHERE sa.raw_pattern = $1`,
-          [pattern],
-        );
-        const matchedStore = aliasMatch.rows[0] ?? null;
+        const storeIds = await storeIdsForMerchant(item.merchant);
+        const suggestedCategoryIds = await categorySuggestionsForStores(storeIds);
 
         let matchedAccountId: string | null = null;
         if (item.card_last4) {
@@ -55,8 +48,9 @@ export async function POST(req: NextRequest) {
             transaction_type: item.transaction_type,
           },
           raw_sms_hash: rawSmsHash,
-          matched_store_id: matchedStore?.id ?? null,
-          matched_category_id: matchedStore?.default_category_id ?? null,
+          matched_store_id: storeIds[0] ?? null,
+          matched_category_id: suggestedCategoryIds[0] ?? null,
+          suggested_category_ids: suggestedCategoryIds,
           matched_account_id: matchedAccountId,
           duplicate: existing.rows.length > 0,
         };

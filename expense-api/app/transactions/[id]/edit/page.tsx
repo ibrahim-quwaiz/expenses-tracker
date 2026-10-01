@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { findOrCreateStore } from "@/lib/stores";
 import { formatAmount } from "@/lib/format";
-import { categorySelectOptions } from "@/lib/categoryOptions";
+import CategoryField from "@/components/CategoryField";
 import type { Account, Category, Expense, TransactionType } from "@/lib/types";
 import { PAYMENT_METHODS, TRANSACTION_TYPE_LABELS } from "@/lib/types";
 
@@ -38,7 +38,7 @@ export default function EditTransactionPage() {
       setAccounts(Array.isArray(accs) ? accs : []);
       setAmount(exp.amount);
       setMerchant(exp.store_name ?? "");
-      setCategoryId(exp.category_id ?? cats?.[0]?.id ?? "");
+      setCategoryId(exp.category_id ?? "");
       setAccountId(exp.account_id ?? "");
       setPaymentMethod(exp.payment_method ?? "");
       setTransactionType(exp.transaction_type);
@@ -50,7 +50,6 @@ export default function EditTransactionPage() {
     });
   }, [id]);
 
-  const categoryOptions = categorySelectOptions(categories);
 
   function goBack() {
     if (window.history.length > 1) router.back();
@@ -151,23 +150,12 @@ export default function EditTransactionPage() {
                   />
                 </div>
                 <div className="h-px bg-separator mr-3.5" />
-                <div className="flex items-center justify-between px-3.5 py-3">
-                  <label htmlFor="eCategory" className="text-[14.5px]">
-                    التصنيف
-                  </label>
-                  <select
-                    id="eCategory"
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
-                  >
-                    {categoryOptions.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <CategoryField
+                  categories={categories}
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  merchant={merchant}
+                />
                 <div className="h-px bg-separator mr-3.5" />
                 <div className="flex items-center justify-between px-3.5 py-3">
                   <label htmlFor="eAccount" className="text-[14.5px]">

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { findOrCreateStore } from "@/lib/stores";
 import { formatAmount } from "@/lib/format";
-import { categorySelectOptions } from "@/lib/categoryOptions";
+import CategoryField from "@/components/CategoryField";
 import type { Account, Category, TransactionType } from "@/lib/types";
 import { PAYMENT_METHODS, TRANSACTION_TYPE_LABELS } from "@/lib/types";
 
@@ -63,10 +63,7 @@ export default function AddExpensePage() {
   useEffect(() => {
     fetch("/api/categories")
       .then((r) => r.json())
-      .then((cats) => {
-        setCategories(Array.isArray(cats) ? cats : []);
-        setCategoryId((prev) => prev || cats?.[0]?.id || "");
-      });
+      .then((cats) => setCategories(Array.isArray(cats) ? cats : []));
     fetch("/api/accounts")
       .then((r) => r.json())
       .then((accs) => {
@@ -76,8 +73,6 @@ export default function AddExpensePage() {
         setAccountsLoaded(true);
       });
   }, []);
-
-  const categoryOptions = categorySelectOptions(categories);
 
   async function saveManual() {
     setError(null);
@@ -134,7 +129,7 @@ export default function AddExpensePage() {
         key: r.raw_sms_hash,
         amount: String(r.extracted.amount),
         merchant: r.extracted.merchant,
-        categoryId: r.matched_category_id ?? categories[0]?.id ?? "",
+        categoryId: r.matched_category_id ?? "",
         accountId: r.matched_account_id ?? accounts[0]?.id ?? "",
         paymentMethod: "",
         transactionType: r.extracted.transaction_type,
@@ -332,23 +327,13 @@ export default function AddExpensePage() {
                 />
               </div>
               <div className="h-px bg-separator mr-3.5" />
-              <div className="flex items-center justify-between px-3.5 py-3">
-                <label htmlFor="mCategory" className="text-[14.5px]">
-                  التصنيف
-                </label>
-                <select
-                  id="mCategory"
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
-                >
-                  {categoryOptions.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CategoryField
+                categories={categories}
+                value={categoryId}
+                onChange={setCategoryId}
+                merchant={merchant}
+                autoFill
+              />
               <div className="h-px bg-separator mr-3.5" />
               <div className="flex items-center justify-between px-3.5 py-3">
                 <label htmlFor="mAccount" className="text-[14.5px]">
@@ -530,20 +515,14 @@ export default function AddExpensePage() {
                       />
                     </div>
                     <div className="h-px bg-separator mr-3.5" />
-                    <div className="flex items-center justify-between px-3.5 py-2.5">
-                      <label className="text-[13.5px]">التصنيف</label>
-                      <select
-                        value={item.categoryId}
-                        onChange={(e) => updateItem(item.key, { categoryId: e.target.value })}
-                        className="bg-transparent text-[13.5px] text-ink-muted text-right border-none outline-none"
-                      >
-                        {categoryOptions.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <CategoryField
+                      categories={categories}
+                      value={item.categoryId}
+                      onChange={(id) => updateItem(item.key, { categoryId: id })}
+                      merchant={item.merchant}
+                      autoFill
+                      compact
+                    />
                     <div className="h-px bg-separator mr-3.5" />
                     <div className="flex items-center justify-between px-3.5 py-2.5">
                       <label className="text-[13.5px]">الحساب</label>
