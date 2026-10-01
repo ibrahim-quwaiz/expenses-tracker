@@ -26,6 +26,9 @@ type SmsItem = {
   date: string;
   time: string | null;
   notes: string;
+  fee: number | null;
+  accountNumberText: string | null;
+  counterpartyAccountId: string | null;
   rawSmsHash: string;
   duplicate: boolean;
   saving: boolean;
@@ -125,23 +128,30 @@ export default function AddExpensePage() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "تعذر تحليل الرسالة");
 
-      const items: SmsItem[] = body.results.map((r: any) => ({
-        key: r.raw_sms_hash,
-        amount: String(r.extracted.amount),
-        merchant: r.extracted.merchant,
-        categoryId: r.matched_category_id ?? "",
-        accountId: r.matched_account_id ?? accounts[0]?.id ?? "",
-        paymentMethod: "",
-        transactionType: r.extracted.transaction_type,
-        date: r.extracted.date,
-        time: r.extracted.time ?? null,
-        notes: "",
-        rawSmsHash: r.raw_sms_hash,
-        duplicate: r.duplicate,
-        saving: false,
-        saved: false,
-        error: null,
-      }));
+      const items: SmsItem[] = body.results.map((r: any) => {
+        const fee: number | null = r.extracted.fee ?? null;
+        return {
+          key: r.raw_sms_hash,
+          amount: String(fee ? Math.round((r.extracted.amount + fee) * 100) / 100 : r.extracted.amount),
+          merchant: r.extracted.merchant,
+          categoryId: r.matched_category_id ?? "",
+          // No silent default: an unrecognized account must be picked by hand.
+          accountId: r.matched_account_id ?? "",
+          paymentMethod: "",
+          transactionType: r.extracted.transaction_type,
+          date: r.extracted.date,
+          time: r.extracted.time ?? null,
+          notes: fee ? `شامل رسوم ${formatAmount(fee)} ر.س` : "",
+          fee,
+          accountNumberText: r.account_number_text ?? null,
+          counterpartyAccountId: r.counterparty_account_id ?? null,
+          rawSmsHash: r.raw_sms_hash,
+          duplicate: r.duplicate,
+          saving: false,
+          saved: false,
+          error: null,
+        };
+      });
       setSmsItems(items);
     } catch (e: any) {
       setSmsError(e.message ?? "حدث خطأ غير متوقع");
@@ -223,6 +233,15 @@ export default function AddExpensePage() {
     }
     setSavingAll(false);
     if (allOk) router.push("/");
+  }
+
+  function transferHint(item: SmsItem): string {
+    const name = (id: string) => accounts.find((a) => a.id === id)?.name ?? "حساب آخر";
+    const other = name(item.counterpartyAccountId!);
+    const self = item.accountId ? name(item.accountId) : "هذا الحساب";
+    const incoming = item.transactionType === "transfer_in" || item.transactionType === "refund";
+    const [from, to] = incoming ? [other, self] : [self, other];
+    return `تحويل بين حساباتك: من ${from} إلى ${to}. هذه العملية تسجّل طرف ${self} فقط — لو ما وصلتك رسالة ${other} سجّلها يدويًا.`;
   }
 
   const pendingCount = smsItems.filter((it) => !it.saved && !it.duplicate).length;
@@ -504,6 +523,11 @@ export default function AddExpensePage() {
                         className="flex-1 border-none bg-transparent text-[13.5px] text-ink text-right outline-none"
                       />
                     </div>
+                    {item.fee !== null && (
+                      <div className="px-3.5 pb-2 -mt-1 text-[11.5px] text-ink-faint">
+                        يشمل رسوم {formatAmount(item.fee)} ر.س
+                      </div>
+                    )}
                     <div className="h-px bg-separator mr-3.5" />
                     <div className="flex items-center px-3.5 py-2.5">
                       <label className="w-[88px] flex-shrink-0 text-[13.5px]">التاجر</label>
@@ -539,6 +563,18 @@ export default function AddExpensePage() {
                         ))}
                       </select>
                     </div>
+                    {!item.accountId && (
+                      <div className="px-3.5 pb-2.5 -mt-1 text-[11.5px] text-warning">
+                        ما تعرّفت على الحساب
+                        {item.accountNumberText && <> (الرقم بالرسالة: <span dir="ltr">{item.accountNumberText}</span>)</>}
+                        {" "}— اختره يدويًا
+                      </div>
+                    )}
+                    {item.counterpartyAccountId && (
+                      <div className="mx-3.5 mb-2.5 rounded-lg bg-fill px-3 py-2 text-[11.5px] leading-5 text-ink-muted">
+                        {transferHint(item)}
+                      </div>
+                    )}
                     <div className="h-px bg-separator mr-3.5" />
                     <div className="flex items-center justify-between px-3.5 py-2.5">
                       <label className="text-[13.5px]">وسيلة الدفع</label>
