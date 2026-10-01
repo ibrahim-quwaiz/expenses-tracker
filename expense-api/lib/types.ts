@@ -32,7 +32,8 @@ export type TransactionType =
   | "bill_payment"
   | "transfer_out"
   | "transfer_in"
-  | "refund";
+  | "refund"
+  | "internal_transfer";
 
 export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   purchase: "شراء",
@@ -40,11 +41,13 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   transfer_out: "تحويل صادر",
   transfer_in: "تحويل وارد",
   refund: "استرجاع",
+  internal_transfer: "تحويل بين حساباتي",
 };
 
 export type Expense = {
   id: string;
   amount: string;
+  fee: string;
   description: string | null;
   date: string;
   category_id: string | null;
@@ -54,12 +57,22 @@ export type Expense = {
   store_logo_url: string | null;
   account_id: string | null;
   account_name: string | null;
+  to_account_id: string | null;
+  to_account_name: string | null;
   payment_method: string | null;
   transaction_type: TransactionType;
   source: string;
   created_at: string;
   updated_at: string;
 };
+
+/** List title: the store, or "from ← to" for a transfer between the user's own accounts. */
+export function transactionTitle(e: Expense): string {
+  if (e.transaction_type === "internal_transfer") {
+    return `${e.account_name ?? "؟"} ← ${e.to_account_name ?? "؟"}`;
+  }
+  return e.store_name ?? "بدون جهة";
+}
 
 export type BudgetStatus = {
   budget_id: string;

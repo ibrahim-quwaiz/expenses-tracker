@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRightIcon, CameraIcon } from "@/components/icons";
-import StoreAvatar from "@/components/StoreAvatar";
+import TransactionAvatar from "@/components/TransactionAvatar";
 import { formatAmount, formatDayMonthYear, formatTime } from "@/lib/format";
-import { TRANSACTION_TYPE_LABELS } from "@/lib/types";
+import { TRANSACTION_TYPE_LABELS, transactionTitle } from "@/lib/types";
 import type { Expense } from "@/lib/types";
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -72,6 +72,8 @@ export default function TransactionDetailsPage() {
     }
   }
 
+  const isTransfer = expense?.transaction_type === "internal_transfer";
+
   return (
     <>
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3.5 border-b border-separator">
@@ -94,7 +96,7 @@ export default function TransactionDetailsPage() {
           <>
             <div className="pt-6.5 pb-5.5 text-center px-4">
               <div className="relative w-[52px] h-[52px] mx-auto mb-3.5">
-                <StoreAvatar name={expense.store_name} logoUrl={expense.store_logo_url} size={52} />
+                <TransactionAvatar expense={expense} size={52} />
                 {expense.store_id && (
                   <label className="absolute -bottom-0.5 -left-0.5 w-[22px] h-[22px] rounded-full bg-primary text-white flex items-center justify-center border-2 border-bg cursor-pointer">
                     <CameraIcon />
@@ -111,18 +113,22 @@ export default function TransactionDetailsPage() {
               <div className="text-[30px] font-bold tabular-nums tracking-tight">
                 {formatAmount(expense.amount)} <span className="text-sm font-medium text-ink-muted">ر.س</span>
               </div>
-              <div className="text-[14.5px] text-ink-muted mt-1">{expense.store_name ?? "بدون جهة"}</div>
+              <div className="text-[14.5px] text-ink-muted mt-1">{transactionTitle(expense)}</div>
               {uploading && <div className="text-xs text-ink-muted mt-1">جارٍ رفع الشعار...</div>}
               {uploadError && <div className="text-xs text-danger mt-1">{uploadError}</div>}
             </div>
 
             <div className="px-4 pb-5">
               <div className="bg-surface rounded-[10px] overflow-hidden">
-                <div className="flex items-center justify-between px-3.5 py-3">
-                  <span className="text-[14.5px] text-ink-muted">التصنيف</span>
-                  <span className="text-[14.5px]">{expense.category_name ?? "بدون تصنيف"}</span>
-                </div>
-                <div className="h-px bg-separator mr-3.5" />
+                {!isTransfer && (
+                  <>
+                    <div className="flex items-center justify-between px-3.5 py-3">
+                      <span className="text-[14.5px] text-ink-muted">التصنيف</span>
+                      <span className="text-[14.5px]">{expense.category_name ?? "بدون تصنيف"}</span>
+                    </div>
+                    <div className="h-px bg-separator mr-3.5" />
+                  </>
+                )}
                 <div className="flex items-center justify-between px-3.5 py-3">
                   <span className="text-[14.5px] text-ink-muted">التاريخ والوقت</span>
                   <span className="text-[14.5px] tabular-nums">
@@ -136,9 +142,27 @@ export default function TransactionDetailsPage() {
                 </div>
                 <div className="h-px bg-separator mr-3.5" />
                 <div className="flex items-center justify-between px-3.5 py-3">
-                  <span className="text-[14.5px] text-ink-muted">الحساب</span>
+                  <span className="text-[14.5px] text-ink-muted">{isTransfer ? "من حساب" : "الحساب"}</span>
                   <span className="text-[14.5px]">{expense.account_name ?? "بدون حساب"}</span>
                 </div>
+                {isTransfer && (
+                  <>
+                    <div className="h-px bg-separator mr-3.5" />
+                    <div className="flex items-center justify-between px-3.5 py-3">
+                      <span className="text-[14.5px] text-ink-muted">إلى حساب</span>
+                      <span className="text-[14.5px]">{expense.to_account_name ?? "بدون حساب"}</span>
+                    </div>
+                    {Number(expense.fee) > 0 && (
+                      <>
+                        <div className="h-px bg-separator mr-3.5" />
+                        <div className="flex items-center justify-between px-3.5 py-3">
+                          <span className="text-[14.5px] text-ink-muted">الرسوم</span>
+                          <span className="text-[14.5px] tabular-nums">{formatAmount(expense.fee)} ر.س</span>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
                 <div className="h-px bg-separator mr-3.5" />
                 <div className="flex items-center justify-between px-3.5 py-3">
                   <span className="text-[14.5px] text-ink-muted">وسيلة الدفع</span>

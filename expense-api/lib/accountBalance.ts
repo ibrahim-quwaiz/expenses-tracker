@@ -8,16 +8,40 @@ const SIGN: Record<string, 1 | -1> = {
   refund: 1,
 };
 
-/** Signed effect of a transaction on an account's balance: negative debits it, positive credits it. */
-export function balanceDelta(amount: number, transactionType: string): number {
-  return (SIGN[transactionType] ?? -1) * amount;
+export type BalanceTx = {
+  amount: number | string;
+  fee?: number | string | null;
+  transaction_type: string;
+  account_id: string | null;
+  to_account_id?: string | null;
+};
+
+/**
+ * Signed effect of a transaction on each account it touches: negative debits, positive credits.
+ * An internal transfer debits the source by amount + fee and credits the destination by amount.
+ */
+export function balanceEffects(tx: BalanceTx): [string, number][] {
+  const amount = Number(tx.amount);
+  if (tx.transaction_type === "internal_transfer") {
+    const effects: [string, number][] = [];
+    if (tx.account_id) effects.push([tx.account_id, -(amount + Number(tx.fee ?? 0))]);
+    if (tx.to_account_id) effects.push([tx.to_account_id, amount]);
+    return effects;
+  }
+  return tx.account_id ? [[tx.account_id, (SIGN[tx.transaction_type] ?? -1) * amount]] : [];
 }
 
-export async function adjustAccountBalance(
-  client: PoolClient,
-  accountId: string | null | undefined,
-  delta: number,
-): Promise<void> {
-  if (!accountId || delta === 0) return;
-  await client.query("UPDATE accounts SET balance = balance + $1 WHERE id = $2", [delta, accountId]);
+/** Net effect on one account, or on all accounts together when accountId is null. */
+export function balanceDelta(tx: BalanceTx, accountId: string | null = null): number {
+  return balanceEffects(tx)
+    .filter(([id]) => accountId === null || id === accountId)
+    .reduce((sum, [, d]) => sum + d, 0);
+}
+
+/** Applies a transaction's effects (direction 1) or reverses them (direction -1). */
+export async function applyBalance(client: PoolClient, tx: BalanceTx, direction: 1 | -1): Promise<void> {
+  for (const [accountId, delta] of balanceEffects(tx)) {
+    if (delta === 0) continue;
+    await client.query("UPDATE accounts SET balance = balance + $1 WHERE id = $2", [direction * delta, accountId]);
+  }
 }

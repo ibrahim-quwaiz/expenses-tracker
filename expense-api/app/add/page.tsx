@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { findOrCreateStore } from "@/lib/stores";
 import { formatAmount } from "@/lib/format";
 import CategoryField from "@/components/CategoryField";
+import TransferFields, { transferError } from "@/components/TransferFields";
 import type { Account, Category, TransactionType } from "@/lib/types";
 import { PAYMENT_METHODS, TRANSACTION_TYPE_LABELS } from "@/lib/types";
 
@@ -29,12 +30,22 @@ type SmsItem = {
   fee: number | null;
   accountNumberText: string | null;
   counterpartyAccountId: string | null;
+  toAccountId: string;
+  transferFee: string;
+  pairedSmsHash: string | null;
+  existingTransferId: string | null;
+  ignoreExisting: boolean;
   rawSmsHash: string;
   duplicate: boolean;
   saving: boolean;
   saved: boolean;
   error: string | null;
 };
+
+/** Still to be saved: not saved yet, not a repeat of a saved SMS or of a transfer already recorded. */
+function isPending(it: SmsItem): boolean {
+  return !it.saved && !it.duplicate && !(it.existingTransferId && !it.ignoreExisting);
+}
 
 export default function AddExpensePage() {
   const router = useRouter();
@@ -48,6 +59,8 @@ export default function AddExpensePage() {
   const [merchant, setMerchant] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [toAccountId, setToAccountId] = useState("");
+  const [fee, setFee] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [transactionType, setTransactionType] = useState<TransactionType>("purchase");
   const [date, setDate] = useState(todayISO());
@@ -81,13 +94,18 @@ export default function AddExpensePage() {
     setError(null);
     const amountNum = parseFloat(amount);
     if (!amountNum || amountNum <= 0) return setError("أدخل مبلغًا صحيحًا");
-    if (!merchant.trim()) return setError("أدخل اسم التاجر");
-    if (!categoryId) return setError("اختر التصنيف");
+    const isTransfer = transactionType === "internal_transfer";
+    if (!isTransfer && !merchant.trim()) return setError("أدخل اسم التاجر");
+    if (!isTransfer && !categoryId) return setError("اختر التصنيف");
     if (!accountId) return setError("اختر الحساب");
+    if (isTransfer) {
+      const err = transferError(accountId, toAccountId, fee);
+      if (err) return setError(err);
+    }
 
     setSaving(true);
     try {
-      const storeId = await findOrCreateStore(merchant.trim());
+      const storeId = isTransfer ? null : await findOrCreateStore(merchant.trim());
       const res = await fetch("/api/expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -99,6 +117,8 @@ export default function AddExpensePage() {
           category_id: categoryId,
           store_id: storeId,
           account_id: accountId || null,
+          to_account_id: isTransfer ? toAccountId : null,
+          fee: isTransfer ? parseFloat(fee) || 0 : 0,
           payment_method: paymentMethod || null,
           transaction_type: transactionType,
         }),
@@ -130,6 +150,35 @@ export default function AddExpensePage() {
 
       const items: SmsItem[] = body.results.map((r: any) => {
         const fee: number | null = r.extracted.fee ?? null;
+        const transfer = r.transfer;
+        if (transfer) {
+          // Between two of the user's accounts: one transfer debiting the sender, crediting the receiver.
+          return {
+            key: r.raw_sms_hash,
+            amount: String(transfer.amount),
+            merchant: r.extracted.merchant,
+            categoryId: "",
+            accountId: transfer.from_account_id ?? "",
+            paymentMethod: "",
+            transactionType: "internal_transfer",
+            date: r.extracted.date,
+            time: r.extracted.time ?? null,
+            notes: "",
+            fee: null,
+            accountNumberText: r.account_number_text ?? null,
+            counterpartyAccountId: r.counterparty_account_id ?? null,
+            toAccountId: transfer.to_account_id ?? "",
+            transferFee: transfer.fee > 0 ? String(transfer.fee) : "",
+            pairedSmsHash: transfer.paired_sms_hash ?? null,
+            existingTransferId: transfer.existing_transfer_id ?? null,
+            ignoreExisting: false,
+            rawSmsHash: r.raw_sms_hash,
+            duplicate: r.duplicate,
+            saving: false,
+            saved: false,
+            error: null,
+          } satisfies SmsItem;
+        }
         return {
           key: r.raw_sms_hash,
           amount: String(fee ? Math.round((r.extracted.amount + fee) * 100) / 100 : r.extracted.amount),
@@ -145,6 +194,11 @@ export default function AddExpensePage() {
           fee,
           accountNumberText: r.account_number_text ?? null,
           counterpartyAccountId: r.counterparty_account_id ?? null,
+          toAccountId: "",
+          transferFee: "",
+          pairedSmsHash: null,
+          existingTransferId: null,
+          ignoreExisting: false,
           rawSmsHash: r.raw_sms_hash,
           duplicate: r.duplicate,
           saving: false,
@@ -180,7 +234,8 @@ export default function AddExpensePage() {
       updateItem(item.key, { error: "أدخل مبلغًا صحيحًا" });
       return false;
     }
-    if (!item.merchant.trim()) {
+    const isTransfer = item.transactionType === "internal_transfer";
+    if (!isTransfer && !item.merchant.trim()) {
       updateItem(item.key, { error: "أدخل اسم التاجر" });
       return false;
     }
@@ -188,9 +243,14 @@ export default function AddExpensePage() {
       updateItem(item.key, { error: "اختر الحساب" });
       return false;
     }
+    const err = isTransfer ? transferError(item.accountId, item.toAccountId, item.transferFee) : null;
+    if (err) {
+      updateItem(item.key, { error: err });
+      return false;
+    }
     updateItem(item.key, { saving: true, error: null });
     try {
-      const storeId = await findOrCreateStore(item.merchant.trim());
+      const storeId = isTransfer ? null : await findOrCreateStore(item.merchant.trim());
       const res = await fetch("/api/expenses/parse-sms/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -202,9 +262,12 @@ export default function AddExpensePage() {
           category_id: item.categoryId || null,
           store_id: storeId,
           account_id: item.accountId || null,
+          to_account_id: isTransfer ? item.toAccountId : null,
+          fee: isTransfer ? parseFloat(item.transferFee) || 0 : 0,
           payment_method: item.paymentMethod || null,
           transaction_type: item.transactionType,
           raw_sms_hash: item.rawSmsHash,
+          paired_sms_hash: isTransfer ? item.pairedSmsHash : null,
         }),
       });
       if (!res.ok) {
@@ -225,7 +288,7 @@ export default function AddExpensePage() {
 
   async function saveAll() {
     setSavingAll(true);
-    const pending = smsItems.filter((it) => !it.saved && !it.duplicate);
+    const pending = smsItems.filter(isPending);
     let allOk = true;
     for (const item of pending) {
       const ok = await saveItem(item);
@@ -236,6 +299,11 @@ export default function AddExpensePage() {
   }
 
   function transferHint(item: SmsItem): string {
+    if (item.transactionType === "internal_transfer") {
+      return item.pairedSmsHash
+        ? "دمجت رسالتي الطرفين في عملية وحدة: تُخصم من الحساب المرسِل وتُضاف للمستلم، والفرق بين المبلغين محسوب كرسوم."
+        : "تحويل بين حساباتك: يُخصم من الحساب المرسِل ويُضاف للمستلم بعملية وحدة. ولو لصقت رسالة الطرف الثاني لاحقًا، التطبيق يتعرّف إنها مسجّلة.";
+    }
     const name = (id: string) => accounts.find((a) => a.id === id)?.name ?? "حساب آخر";
     const other = name(item.counterpartyAccountId!);
     const self = item.accountId ? name(item.accountId) : "هذا الحساب";
@@ -244,7 +312,8 @@ export default function AddExpensePage() {
     return `تحويل بين حساباتك: من ${from} إلى ${to}. هذه العملية تسجّل طرف ${self} فقط — لو ما وصلتك رسالة ${other} سجّلها يدويًا.`;
   }
 
-  const pendingCount = smsItems.filter((it) => !it.saved && !it.duplicate).length;
+  const pendingCount = smsItems.filter(isPending).length;
+  const manualTransfer = transactionType === "internal_transfer";
 
   return (
     <>
@@ -331,32 +400,36 @@ export default function AddExpensePage() {
                   className="flex-1 border-none bg-transparent text-[14.5px] text-ink text-right outline-none"
                 />
               </div>
-              <div className="h-px bg-separator mr-3.5" />
-              <div className="flex items-center px-3.5 py-3">
-                <label htmlFor="mMerchant" className="w-[88px] flex-shrink-0 text-[14.5px]">
-                  التاجر
-                </label>
-                <input
-                  id="mMerchant"
-                  type="text"
-                  value={merchant}
-                  onChange={(e) => setMerchant(e.target.value)}
-                  placeholder="اسم الجهة"
-                  className="flex-1 border-none bg-transparent text-[14.5px] text-ink text-right outline-none"
-                />
-              </div>
-              <div className="h-px bg-separator mr-3.5" />
-              <CategoryField
-                categories={categories}
-                value={categoryId}
-                onChange={setCategoryId}
-                merchant={merchant}
-                autoFill
-              />
+              {!manualTransfer && (
+                <>
+                  <div className="h-px bg-separator mr-3.5" />
+                  <div className="flex items-center px-3.5 py-3">
+                    <label htmlFor="mMerchant" className="w-[88px] flex-shrink-0 text-[14.5px]">
+                      التاجر
+                    </label>
+                    <input
+                      id="mMerchant"
+                      type="text"
+                      value={merchant}
+                      onChange={(e) => setMerchant(e.target.value)}
+                      placeholder="اسم الجهة"
+                      className="flex-1 border-none bg-transparent text-[14.5px] text-ink text-right outline-none"
+                    />
+                  </div>
+                  <div className="h-px bg-separator mr-3.5" />
+                  <CategoryField
+                    categories={categories}
+                    value={categoryId}
+                    onChange={setCategoryId}
+                    merchant={merchant}
+                    autoFill
+                  />
+                </>
+              )}
               <div className="h-px bg-separator mr-3.5" />
               <div className="flex items-center justify-between px-3.5 py-3">
                 <label htmlFor="mAccount" className="text-[14.5px]">
-                  الحساب
+                  {manualTransfer ? "من حساب" : "الحساب"}
                 </label>
                 <select
                   id="mAccount"
@@ -372,25 +445,39 @@ export default function AddExpensePage() {
                   ))}
                 </select>
               </div>
-              <div className="h-px bg-separator mr-3.5" />
-              <div className="flex items-center justify-between px-3.5 py-3">
-                <label htmlFor="mPaymentMethod" className="text-[14.5px]">
-                  وسيلة الدفع
-                </label>
-                <select
-                  id="mPaymentMethod"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
-                >
-                  <option value="">غير محددة</option>
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {manualTransfer && (
+                <TransferFields
+                  accounts={accounts}
+                  fromAccountId={accountId}
+                  toAccountId={toAccountId}
+                  onToAccountChange={setToAccountId}
+                  fee={fee}
+                  onFeeChange={setFee}
+                />
+              )}
+              {!manualTransfer && (
+                <>
+                  <div className="h-px bg-separator mr-3.5" />
+                  <div className="flex items-center justify-between px-3.5 py-3">
+                    <label htmlFor="mPaymentMethod" className="text-[14.5px]">
+                      وسيلة الدفع
+                    </label>
+                    <select
+                      id="mPaymentMethod"
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
+                    >
+                      <option value="">غير محددة</option>
+                      {PAYMENT_METHODS.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
               <div className="h-px bg-separator mr-3.5" />
               <div className="flex items-center justify-between px-3.5 py-3">
                 <label htmlFor="mType" className="text-[14.5px]">
@@ -501,6 +588,8 @@ export default function AddExpensePage() {
                       <span className="text-xs font-semibold text-success">تم الحفظ ✓</span>
                     ) : item.duplicate ? (
                       <span className="text-xs font-semibold text-warning">مكررة — تم تجاهلها</span>
+                    ) : item.existingTransferId && !item.ignoreExisting ? (
+                      <span className="text-xs font-semibold text-warning">مسجّل مسبقًا — تم تجاهله</span>
                     ) : (
                       <button
                         onClick={() => removeItem(item.key)}
@@ -523,33 +612,39 @@ export default function AddExpensePage() {
                         className="flex-1 border-none bg-transparent text-[13.5px] text-ink text-right outline-none"
                       />
                     </div>
-                    {item.fee !== null && (
+                    {item.fee !== null && item.transactionType !== "internal_transfer" && (
                       <div className="px-3.5 pb-2 -mt-1 text-[11.5px] text-ink-faint">
                         يشمل رسوم {formatAmount(item.fee)} ر.س
                       </div>
                     )}
-                    <div className="h-px bg-separator mr-3.5" />
-                    <div className="flex items-center px-3.5 py-2.5">
-                      <label className="w-[88px] flex-shrink-0 text-[13.5px]">التاجر</label>
-                      <input
-                        type="text"
-                        value={item.merchant}
-                        onChange={(e) => updateItem(item.key, { merchant: e.target.value })}
-                        className="flex-1 border-none bg-transparent text-[13.5px] text-ink text-right outline-none"
-                      />
-                    </div>
-                    <div className="h-px bg-separator mr-3.5" />
-                    <CategoryField
-                      categories={categories}
-                      value={item.categoryId}
-                      onChange={(id) => updateItem(item.key, { categoryId: id })}
-                      merchant={item.merchant}
-                      autoFill
-                      compact
-                    />
+                    {item.transactionType !== "internal_transfer" && (
+                      <>
+                        <div className="h-px bg-separator mr-3.5" />
+                        <div className="flex items-center px-3.5 py-2.5">
+                          <label className="w-[88px] flex-shrink-0 text-[13.5px]">التاجر</label>
+                          <input
+                            type="text"
+                            value={item.merchant}
+                            onChange={(e) => updateItem(item.key, { merchant: e.target.value })}
+                            className="flex-1 border-none bg-transparent text-[13.5px] text-ink text-right outline-none"
+                          />
+                        </div>
+                        <div className="h-px bg-separator mr-3.5" />
+                        <CategoryField
+                          categories={categories}
+                          value={item.categoryId}
+                          onChange={(id) => updateItem(item.key, { categoryId: id })}
+                          merchant={item.merchant}
+                          autoFill
+                          compact
+                        />
+                      </>
+                    )}
                     <div className="h-px bg-separator mr-3.5" />
                     <div className="flex items-center justify-between px-3.5 py-2.5">
-                      <label className="text-[13.5px]">الحساب</label>
+                      <label className="text-[13.5px]">
+                        {item.transactionType === "internal_transfer" ? "من حساب" : "الحساب"}
+                      </label>
                       <select
                         value={item.accountId}
                         onChange={(e) => updateItem(item.key, { accountId: e.target.value })}
@@ -570,27 +665,42 @@ export default function AddExpensePage() {
                         {" "}— اختره يدويًا
                       </div>
                     )}
-                    {item.counterpartyAccountId && (
+                    {item.transactionType === "internal_transfer" && (
+                      <TransferFields
+                        accounts={accounts}
+                        fromAccountId={item.accountId}
+                        toAccountId={item.toAccountId}
+                        onToAccountChange={(id) => updateItem(item.key, { toAccountId: id })}
+                        fee={item.transferFee}
+                        onFeeChange={(v) => updateItem(item.key, { transferFee: v })}
+                        compact
+                      />
+                    )}
+                    {(item.counterpartyAccountId || item.transactionType === "internal_transfer") && (
                       <div className="mx-3.5 mb-2.5 rounded-lg bg-fill px-3 py-2 text-[11.5px] leading-5 text-ink-muted">
                         {transferHint(item)}
                       </div>
                     )}
-                    <div className="h-px bg-separator mr-3.5" />
-                    <div className="flex items-center justify-between px-3.5 py-2.5">
-                      <label className="text-[13.5px]">وسيلة الدفع</label>
-                      <select
-                        value={item.paymentMethod}
-                        onChange={(e) => updateItem(item.key, { paymentMethod: e.target.value })}
-                        className="bg-transparent text-[13.5px] text-ink-muted text-right border-none outline-none"
-                      >
-                        <option value="">غير محددة</option>
-                        {PAYMENT_METHODS.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    {item.transactionType !== "internal_transfer" && (
+                      <>
+                        <div className="h-px bg-separator mr-3.5" />
+                        <div className="flex items-center justify-between px-3.5 py-2.5">
+                          <label className="text-[13.5px]">وسيلة الدفع</label>
+                          <select
+                            value={item.paymentMethod}
+                            onChange={(e) => updateItem(item.key, { paymentMethod: e.target.value })}
+                            className="bg-transparent text-[13.5px] text-ink-muted text-right border-none outline-none"
+                          >
+                            <option value="">غير محددة</option>
+                            {PAYMENT_METHODS.map((m) => (
+                              <option key={m} value={m}>
+                                {m}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    )}
                     <div className="h-px bg-separator mr-3.5" />
                     <div className="flex items-center justify-between px-3.5 py-2.5">
                       <label className="text-[13.5px]">نوع العملية</label>
@@ -631,7 +741,22 @@ export default function AddExpensePage() {
                     </div>
                   </fieldset>
 
-                  {!item.saved && !item.duplicate && (
+                  {!item.saved && !item.duplicate && item.existingTransferId && !item.ignoreExisting && (
+                    <div className="px-3.5 py-2.5 border-t border-separator text-[12px] leading-5 text-ink-muted">
+                      يبدو إن هذا التحويل مسجّل مسبقًا من رسالة الطرف الثاني.{" "}
+                      <Link href={`/transactions/${item.existingTransferId}`} className="font-semibold text-primary">
+                        عرض المسجّل
+                      </Link>
+                      {" · "}
+                      <button
+                        onClick={() => updateItem(item.key, { ignoreExisting: true })}
+                        className="font-semibold text-primary"
+                      >
+                        سجّلها كعملية جديدة
+                      </button>
+                    </div>
+                  )}
+                  {isPending(item) && (
                     <div className="px-3.5 py-2.5 border-t border-separator">
                       <button
                         onClick={() => saveItem(item)}

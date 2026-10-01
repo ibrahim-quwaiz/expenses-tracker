@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import BottomNav from "@/components/BottomNav";
-import StoreAvatar from "@/components/StoreAvatar";
+import TransactionAvatar from "@/components/TransactionAvatar";
 import { PlusIcon, SearchIcon } from "@/components/icons";
 import { formatAmount, relativeDayLabel, formatTime } from "@/lib/format";
 import type { Category, Expense } from "@/lib/types";
-import { TRANSACTION_TYPE_LABELS } from "@/lib/types";
+import { TRANSACTION_TYPE_LABELS, transactionTitle } from "@/lib/types";
 
 export default function TransactionsPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -34,7 +34,7 @@ export default function TransactionsPage() {
       if (activeCategory && e.category_id !== activeCategory) return false;
       if (!q) return true;
       return (
-        (e.store_name ?? "").toLowerCase().includes(q) ||
+        transactionTitle(e).toLowerCase().includes(q) ||
         (e.description ?? "").toLowerCase().includes(q) ||
         (e.category_name ?? "").toLowerCase().includes(q)
       );
@@ -113,11 +113,12 @@ export default function TransactionsPage() {
               {items.map((e, i) => (
                 <div key={e.id}>
                   <Link href={`/transactions/${e.id}`} className="flex items-center gap-3 px-3.5 py-2.5">
-                    <StoreAvatar name={e.store_name} logoUrl={e.store_logo_url} />
+                    <TransactionAvatar expense={e} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-[14.5px] font-medium truncate">{e.store_name ?? "بدون جهة"}</div>
+                      <div className="text-[14.5px] font-medium truncate">{transactionTitle(e)}</div>
                       <div className="text-xs text-ink-muted mt-0.5 truncate">
-                        {e.category_name ?? "بدون تصنيف"} &middot; {TRANSACTION_TYPE_LABELS[e.transaction_type]} &middot;{" "}
+                        {e.transaction_type !== "internal_transfer" && <>{e.category_name ?? "بدون تصنيف"} &middot; </>}
+                        {TRANSACTION_TYPE_LABELS[e.transaction_type]} &middot;{" "}
                         {formatTime(e.date)}
                       </div>
                     </div>

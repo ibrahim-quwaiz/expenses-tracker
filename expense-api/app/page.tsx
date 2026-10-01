@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import BottomNav from "@/components/BottomNav";
-import StoreAvatar from "@/components/StoreAvatar";
+import TransactionAvatar from "@/components/TransactionAvatar";
 import { PlusIcon, ChevronRightIcon, ChevronLeftIcon } from "@/components/icons";
 import { useMonthCursor } from "@/lib/useMonthCursor";
 import { formatAmount, formatMonthYear, relativeDayLabel, formatTime } from "@/lib/format";
 import type { BudgetStatus, Expense } from "@/lib/types";
+import { TRANSACTION_TYPE_LABELS, transactionTitle } from "@/lib/types";
 
 export default function HomePage() {
   const month = useMonthCursor();
@@ -143,11 +144,14 @@ export default function HomePage() {
             {expenses.slice(0, 5).map((e, i, arr) => (
               <div key={e.id}>
                 <Link href={`/transactions/${e.id}`} className="flex items-center gap-3 px-3.5 py-2.5">
-                  <StoreAvatar name={e.store_name} logoUrl={e.store_logo_url} />
+                  <TransactionAvatar expense={e} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[14.5px] font-medium truncate">{e.store_name ?? "بدون جهة"}</div>
+                    <div className="text-[14.5px] font-medium truncate">{transactionTitle(e)}</div>
                     <div className="text-xs text-ink-muted mt-0.5 truncate">
-                      {e.category_name ?? "بدون تصنيف"} &middot; {relativeDayLabel(e.date)}
+                      {e.transaction_type === "internal_transfer"
+                        ? TRANSACTION_TYPE_LABELS.internal_transfer
+                        : (e.category_name ?? "بدون تصنيف")}{" "}
+                      &middot; {relativeDayLabel(e.date)}
                       {relativeDayLabel(e.date) === "اليوم" ? ` ${formatTime(e.date)}` : ""}
                     </div>
                   </div>

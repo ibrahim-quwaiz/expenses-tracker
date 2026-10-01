@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { findOrCreateStore } from "@/lib/stores";
 import { formatAmount } from "@/lib/format";
 import CategoryField from "@/components/CategoryField";
+import TransferFields, { transferError } from "@/components/TransferFields";
 import type { Account, Category, Expense, TransactionType } from "@/lib/types";
 import { PAYMENT_METHODS, TRANSACTION_TYPE_LABELS } from "@/lib/types";
 
@@ -22,6 +23,8 @@ export default function EditTransactionPage() {
   const [merchant, setMerchant] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [toAccountId, setToAccountId] = useState("");
+  const [fee, setFee] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [transactionType, setTransactionType] = useState<TransactionType>("purchase");
   const [date, setDate] = useState("");
@@ -40,6 +43,8 @@ export default function EditTransactionPage() {
       setMerchant(exp.store_name ?? "");
       setCategoryId(exp.category_id ?? "");
       setAccountId(exp.account_id ?? "");
+      setToAccountId(exp.to_account_id ?? "");
+      setFee(Number(exp.fee) > 0 ? exp.fee : "");
       setPaymentMethod(exp.payment_method ?? "");
       setTransactionType(exp.transaction_type);
       setDate(exp.date.slice(0, 10));
@@ -60,12 +65,16 @@ export default function EditTransactionPage() {
     setError(null);
     const amountNum = parseFloat(amount);
     if (!amountNum || amountNum <= 0) return setError("أدخل مبلغًا صحيحًا");
-    if (!merchant.trim()) return setError("أدخل اسم التاجر");
+    if (!isTransfer && !merchant.trim()) return setError("أدخل اسم التاجر");
     if (!accountId) return setError("اختر الحساب");
+    if (isTransfer) {
+      const err = transferError(accountId, toAccountId, fee);
+      if (err) return setError(err);
+    }
 
     setSaving(true);
     try {
-      const storeId = await findOrCreateStore(merchant.trim());
+      const storeId = isTransfer ? null : await findOrCreateStore(merchant.trim());
       const res = await fetch(`/api/expenses/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -77,6 +86,8 @@ export default function EditTransactionPage() {
           category_id: categoryId || null,
           store_id: storeId,
           account_id: accountId || null,
+          to_account_id: isTransfer ? toAccountId : null,
+          fee: isTransfer ? parseFloat(fee) || 0 : 0,
           payment_method: paymentMethod || null,
           transaction_type: transactionType,
         }),
@@ -92,6 +103,8 @@ export default function EditTransactionPage() {
       setSaving(false);
     }
   }
+
+  const isTransfer = transactionType === "internal_transfer";
 
   return (
     <>
@@ -136,30 +149,34 @@ export default function EditTransactionPage() {
                     className="flex-1 border-none bg-transparent text-[14.5px] text-ink text-right outline-none"
                   />
                 </div>
-                <div className="h-px bg-separator mr-3.5" />
-                <div className="flex items-center px-3.5 py-3">
-                  <label htmlFor="eMerchant" className="w-[88px] flex-shrink-0 text-[14.5px]">
-                    التاجر
-                  </label>
-                  <input
-                    id="eMerchant"
-                    type="text"
-                    value={merchant}
-                    onChange={(e) => setMerchant(e.target.value)}
-                    className="flex-1 border-none bg-transparent text-[14.5px] text-ink text-right outline-none"
-                  />
-                </div>
-                <div className="h-px bg-separator mr-3.5" />
-                <CategoryField
-                  categories={categories}
-                  value={categoryId}
-                  onChange={setCategoryId}
-                  merchant={merchant}
-                />
+                {!isTransfer && (
+                  <>
+                    <div className="h-px bg-separator mr-3.5" />
+                    <div className="flex items-center px-3.5 py-3">
+                      <label htmlFor="eMerchant" className="w-[88px] flex-shrink-0 text-[14.5px]">
+                        التاجر
+                      </label>
+                      <input
+                        id="eMerchant"
+                        type="text"
+                        value={merchant}
+                        onChange={(e) => setMerchant(e.target.value)}
+                        className="flex-1 border-none bg-transparent text-[14.5px] text-ink text-right outline-none"
+                      />
+                    </div>
+                    <div className="h-px bg-separator mr-3.5" />
+                    <CategoryField
+                      categories={categories}
+                      value={categoryId}
+                      onChange={setCategoryId}
+                      merchant={merchant}
+                    />
+                  </>
+                )}
                 <div className="h-px bg-separator mr-3.5" />
                 <div className="flex items-center justify-between px-3.5 py-3">
                   <label htmlFor="eAccount" className="text-[14.5px]">
-                    الحساب
+                    {isTransfer ? "من حساب" : "الحساب"}
                   </label>
                   <select
                     id="eAccount"
@@ -175,25 +192,39 @@ export default function EditTransactionPage() {
                     ))}
                   </select>
                 </div>
-                <div className="h-px bg-separator mr-3.5" />
-                <div className="flex items-center justify-between px-3.5 py-3">
-                  <label htmlFor="ePaymentMethod" className="text-[14.5px]">
-                    وسيلة الدفع
-                  </label>
-                  <select
-                    id="ePaymentMethod"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
-                  >
-                    <option value="">غير محددة</option>
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {isTransfer && (
+                  <TransferFields
+                    accounts={accounts}
+                    fromAccountId={accountId}
+                    toAccountId={toAccountId}
+                    onToAccountChange={setToAccountId}
+                    fee={fee}
+                    onFeeChange={setFee}
+                  />
+                )}
+                {!isTransfer && (
+                  <>
+                    <div className="h-px bg-separator mr-3.5" />
+                    <div className="flex items-center justify-between px-3.5 py-3">
+                      <label htmlFor="ePaymentMethod" className="text-[14.5px]">
+                        وسيلة الدفع
+                      </label>
+                      <select
+                        id="ePaymentMethod"
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="bg-transparent text-[14.5px] text-ink-muted text-right border-none outline-none"
+                      >
+                        <option value="">غير محددة</option>
+                        {PAYMENT_METHODS.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
                 <div className="h-px bg-separator mr-3.5" />
                 <div className="flex items-center justify-between px-3.5 py-3">
                   <label htmlFor="eType" className="text-[14.5px]">

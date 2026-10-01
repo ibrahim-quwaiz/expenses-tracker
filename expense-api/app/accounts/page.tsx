@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import BottomNav from "@/components/BottomNav";
-import StoreAvatar from "@/components/StoreAvatar";
+import TransactionAvatar from "@/components/TransactionAvatar";
 import { PlusIcon, ChevronRightIcon, ChevronLeftIcon } from "@/components/icons";
 import { useMonthCursor } from "@/lib/useMonthCursor";
 import { balanceDelta } from "@/lib/accountBalance";
 import { formatAmount, formatMonthYear, relativeDayLabel, formatTime } from "@/lib/format";
 import type { Account, Expense } from "@/lib/types";
-import { TRANSACTION_TYPE_LABELS } from "@/lib/types";
+import { TRANSACTION_TYPE_LABELS, transactionTitle } from "@/lib/types";
 
 type EditState = { name: string; card_last4: string[]; balance: string };
 
@@ -189,12 +189,12 @@ export default function AccountsPage() {
     let inflow = 0;
     let outflow = 0;
     for (const e of expenses) {
-      const d = balanceDelta(parseFloat(e.amount), e.transaction_type);
+      const d = balanceDelta(e, selected === ALL ? null : selected);
       if (d > 0) inflow += d;
       else outflow -= d;
     }
     return { inflow, outflow };
-  }, [expenses]);
+  }, [expenses, selected]);
 
   const groups = useMemo(() => {
     const map = new Map<string, Expense[]>();
@@ -450,16 +450,18 @@ export default function AccountsPage() {
                     </div>
                     <div className="bg-surface rounded-[10px] overflow-hidden mb-4.5">
                       {items.map((e, i) => {
-                        const delta = balanceDelta(parseFloat(e.amount), e.transaction_type);
+                        // Across all accounts a transfer between them only moves money; show it unsigned.
+                        const neutral = selected === ALL && e.transaction_type === "internal_transfer";
+                        const delta = neutral ? 0 : balanceDelta(e, selected === ALL ? null : selected);
                         return (
                           <div key={e.id}>
                             <Link href={`/transactions/${e.id}`} className="flex items-center gap-3 px-3.5 py-2.5">
-                              <StoreAvatar name={e.store_name} logoUrl={e.store_logo_url} />
+                              <TransactionAvatar expense={e} />
                               <div className="flex-1 min-w-0">
-                                <div className="text-[14.5px] font-medium truncate">{e.store_name ?? "بدون جهة"}</div>
+                                <div className="text-[14.5px] font-medium truncate">{transactionTitle(e)}</div>
                                 <div className="text-xs text-ink-muted mt-0.5 truncate">
                                   {TRANSACTION_TYPE_LABELS[e.transaction_type]} &middot;{" "}
-                                  {selected === ALL && <>{e.account_name ?? "بدون حساب"} &middot; </>}
+                                  {selected === ALL && !neutral && <>{e.account_name ?? "بدون حساب"} &middot; </>}
                                   {formatTime(e.date)}
                                 </div>
                               </div>
@@ -469,8 +471,8 @@ export default function AccountsPage() {
                                 }`}
                               >
                                 <span dir="ltr">
-                                  {delta > 0 ? "+" : "−"}
-                                  {formatAmount(Math.abs(delta))}
+                                  {neutral ? "" : delta > 0 ? "+" : "−"}
+                                  {formatAmount(neutral ? e.amount : Math.abs(delta))}
                                 </span>{" "}
                                 <span className="text-xs text-ink-muted">ر.س</span>
                               </div>

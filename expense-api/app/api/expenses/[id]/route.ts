@@ -1,23 +1,15 @@
 import { NextRequest } from "next/server";
 import { pool } from "@/lib/db";
 import { ok, badRequest, notFound, serverError } from "@/lib/http";
-import { balanceDelta, adjustAccountBalance } from "@/lib/accountBalance";
+import { applyBalance } from "@/lib/accountBalance";
 import { combineDateTime, timeOfDay } from "@/lib/dateTime";
-
-const VALID_TYPES = ["purchase", "bill_payment", "transfer_out", "transfer_in", "refund"];
+import { parseTransactionInput, RETURNING, SELECT_EXPENSE } from "@/lib/transactionInput";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const { rows } = await pool.query(
-      `SELECT e.id, e.amount, e.description, e.date, e.category_id, c.name AS category_name,
-              e.store_id, s.name AS store_name, s.logo_url AS store_logo_url,
-              e.account_id, a.name AS account_name, e.payment_method,
-              e.transaction_type, e.source, e.created_at, e.updated_at
-       FROM expenses e
-       LEFT JOIN categories c ON c.id = e.category_id
-       LEFT JOIN stores s ON s.id = e.store_id
-       LEFT JOIN accounts a ON a.id = e.account_id
+      `${SELECT_EXPENSE}
        WHERE e.id = $1`,
       [id],
     );
@@ -32,24 +24,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const client = await pool.connect();
   try {
-    const body = await req.json();
-    const { amount, description, date, time, category_id, store_id, account_id, payment_method, transaction_type } =
-      body ?? {};
-
-    if (amount === undefined || Number(amount) < 0) {
-      return badRequest("amount must be a non-negative number");
-    }
-    if (!date) return badRequest("date is required");
-    if (!account_id) return badRequest("account_id is required");
-    const type = transaction_type ?? "purchase";
-    if (!VALID_TYPES.includes(type)) {
-      return badRequest(`transaction_type must be one of: ${VALID_TYPES.join(", ")}`);
-    }
+    const input = parseTransactionInput(await req.json());
+    if (typeof input === "string") return badRequest(input);
 
     await client.query("BEGIN");
 
     const existing = await client.query(
-      "SELECT amount, transaction_type, account_id, date FROM expenses WHERE id = $1 FOR UPDATE",
+      "SELECT amount, fee, transaction_type, account_id, to_account_id, date FROM expenses WHERE id = $1 FOR UPDATE",
       [id],
     );
     if (existing.rows.length === 0) {
@@ -57,20 +38,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return notFound("Expense not found");
     }
     const prev = existing.rows[0];
-    const occurredAt = combineDateTime(date, time ?? timeOfDay(prev.date));
+    const occurredAt = combineDateTime(input.date, input.time ?? timeOfDay(prev.date));
 
     const { rows } = await client.query(
       `UPDATE expenses
-       SET amount = $1, description = $2, date = $3, category_id = $4, store_id = $5,
-           account_id = $6, payment_method = $7, transaction_type = $8
-       WHERE id = $9
-       RETURNING id, amount, description, date, category_id, store_id, account_id, payment_method, transaction_type, source, created_at, updated_at`,
-      [amount, description ?? null, occurredAt, category_id ?? null, store_id ?? null, account_id ?? null, payment_method ?? null, type, id],
+       SET amount = $1, fee = $2, description = $3, date = $4, category_id = $5, store_id = $6,
+           account_id = $7, to_account_id = $8, payment_method = $9, transaction_type = $10
+       WHERE id = $11
+       RETURNING ${RETURNING}`,
+      [input.amount, input.fee, input.description, occurredAt, input.category_id, input.store_id, input.account_id, input.to_account_id, input.payment_method, input.transaction_type, id],
     );
 
     // reverse the previous effect, then apply the new one
-    await adjustAccountBalance(client, prev.account_id, -balanceDelta(Number(prev.amount), prev.transaction_type));
-    await adjustAccountBalance(client, account_id, balanceDelta(Number(amount), type));
+    await applyBalance(client, prev, -1);
+    await applyBalance(client, rows[0], 1);
 
     await client.query("COMMIT");
     return ok(rows[0]);
@@ -92,7 +73,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await client.query("BEGIN");
 
     const existing = await client.query(
-      "SELECT amount, transaction_type, account_id FROM expenses WHERE id = $1 FOR UPDATE",
+      "SELECT amount, fee, transaction_type, account_id, to_account_id FROM expenses WHERE id = $1 FOR UPDATE",
       [id],
     );
     if (existing.rows.length === 0) {
@@ -102,7 +83,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const prev = existing.rows[0];
 
     await client.query("DELETE FROM expenses WHERE id = $1", [id]);
-    await adjustAccountBalance(client, prev.account_id, -balanceDelta(Number(prev.amount), prev.transaction_type));
+    await applyBalance(client, prev, -1);
 
     await client.query("COMMIT");
     return ok({ deleted: true });

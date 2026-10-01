@@ -33,6 +33,36 @@ async function loadSmsContext(): Promise<SmsContext> {
   };
 }
 
+type Transfer = {
+  from_account_id: string | null;
+  to_account_id: string | null;
+  amount: number;
+  fee: number;
+  paired_sms_hash: string | null;
+  existing_transfer_id: string | null;
+};
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Amounts of the two sides of one transfer can differ by a fee the sending bank folded in. */
+const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(5, 0.02 * Math.max(a, b));
+const daysApart = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
+
+/** An internal transfer saved earlier (e.g. from the other side's message) that this one likely repeats. */
+async function existingTransferId(t: Transfer, date: string): Promise<string | null> {
+  if (!t.from_account_id && !t.to_account_id) return null;
+  const { rows } = await pool.query(
+    `SELECT id, amount, fee FROM expenses
+     WHERE transaction_type = 'internal_transfer'
+       AND ($1::uuid IS NULL OR account_id = $1) AND ($2::uuid IS NULL OR to_account_id = $2)
+       AND date >= $3::date - 1 AND date < $3::date + 2
+     ORDER BY date DESC`,
+    [t.from_account_id, t.to_account_id, date],
+  );
+  const total = t.amount + t.fee;
+  const match = rows.find((r) => near(total, Number(r.amount)) || near(total, Number(r.amount) + Number(r.fee)));
+  return match?.id ?? null;
+}
+
 /**
  * Preview-only: extracts one or more transactions from the pasted SMS text via Claude and looks
  * up a matching store for each, but does NOT write anything to the database. The caller reviews
@@ -54,13 +84,29 @@ export async function POST(req: NextRequest) {
       extracted.map(async (item) => {
         const rawSmsHash = createHash("sha256").update(item.raw_text.trim()).digest("hex");
 
-        const existing = await pool.query("SELECT id FROM expenses WHERE raw_sms_hash = $1", [rawSmsHash]);
+        const existing = await pool.query(
+          "SELECT id FROM expenses WHERE raw_sms_hash = $1 OR paired_sms_hash = $1",
+          [rawSmsHash],
+        );
 
         const storeIds = await storeIdsForMerchant(item.merchant);
         const suggestedCategoryIds = await categorySuggestionsForStores(storeIds);
 
         let matchedAccountId = item.account_id ?? accountByNumberText(item.account_number_text, context.accounts);
         if (matchedAccountId === item.counterparty_account_id) matchedAccountId = null;
+
+        // The other side is one of the user's own accounts: offer it as one internal transfer.
+        const incoming = item.transaction_type === "transfer_in" || item.transaction_type === "refund";
+        const transfer: Transfer | null = item.counterparty_account_id
+          ? {
+              from_account_id: incoming ? item.counterparty_account_id : matchedAccountId,
+              to_account_id: incoming ? matchedAccountId : item.counterparty_account_id,
+              amount: item.amount,
+              fee: item.fee ?? 0,
+              paired_sms_hash: null,
+              existing_transfer_id: null,
+            }
+          : null;
 
         return {
           extracted: {
@@ -79,12 +125,55 @@ export async function POST(req: NextRequest) {
           matched_account_id: matchedAccountId,
           account_number_text: item.account_number_text,
           counterparty_account_id: item.counterparty_account_id,
+          transfer,
           duplicate: existing.rows.length > 0,
         };
       }),
     );
 
-    return ok({ results });
+    // Both sides of the same transfer pasted together: merge the receiving side into the sending
+    // side. The received amount is what moved; any difference is the sending bank's fee.
+    const merged = new Set<string>();
+    for (const out of results) {
+      const o = out.transfer;
+      if (!o || out.duplicate || out.extracted.transaction_type === "transfer_in") continue;
+      const sent = o.amount + o.fee;
+      const match = results.find((r) => {
+        const i = r.transfer;
+        if (!i || r === out || r.duplicate || merged.has(r.raw_sms_hash)) return false;
+        if (r.extracted.transaction_type !== "transfer_in") return false;
+        const sameFrom = !o.from_account_id || !i.from_account_id || o.from_account_id === i.from_account_id;
+        const sameTo = !o.to_account_id || !i.to_account_id || o.to_account_id === i.to_account_id;
+        const anchored =
+          (o.from_account_id && o.from_account_id === i.from_account_id) ||
+          (o.to_account_id && o.to_account_id === i.to_account_id);
+        return (
+          sameFrom && sameTo && Boolean(anchored) && sent >= i.amount && near(sent, i.amount) &&
+          daysApart(out.extracted.date, r.extracted.date) <= 1
+        );
+      });
+      if (!match?.transfer) continue;
+      merged.add(match.raw_sms_hash);
+      out.transfer = {
+        from_account_id: o.from_account_id ?? match.transfer.from_account_id,
+        to_account_id: o.to_account_id ?? match.transfer.to_account_id,
+        amount: match.transfer.amount,
+        fee: round2(sent - match.transfer.amount),
+        paired_sms_hash: match.raw_sms_hash,
+        existing_transfer_id: null,
+      };
+    }
+    const final = results.filter((r) => !merged.has(r.raw_sms_hash));
+
+    await Promise.all(
+      final.map(async (r) => {
+        if (r.transfer && !r.duplicate) {
+          r.transfer.existing_transfer_id = await existingTransferId(r.transfer, r.extracted.date);
+        }
+      }),
+    );
+
+    return ok({ results: final });
   } catch (error) {
     return serverError(error);
   }
